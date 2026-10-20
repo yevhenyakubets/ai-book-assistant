@@ -1,9 +1,16 @@
+import logging
 import re
+import time
 from collections.abc import Mapping
 
 import httpx
 
 from ai_book_assistant.models import Book
+from ai_book_assistant.search.parsing import book_from_search_doc, extract_description
+
+logger = logging.getLogger(__name__)
+
+RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
 
 class OpenLibraryClient:
@@ -11,10 +18,20 @@ class OpenLibraryClient:
     WORK_KEY_PATTERN = re.compile(r"/works/[A-Za-z0-9_-]+")
 
     def __init__(
-        self, timeout: float = 10.0, transport: httpx.BaseTransport | None = None
+        self,
+        timeout: float = 10.0,
+        transport: httpx.BaseTransport | None = None,
+        max_attempts: int = 3,
+        backoff: float = 0.5,
+        sleep=time.sleep,
     ) -> None:
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be at least 1")
         self.timeout = timeout
         self.transport = transport
+        self.max_attempts = max_attempts
+        self.backoff = backoff
+        self.sleep = sleep
         self.headers = {
             "User-Agent": (
                 "AIBookAssistant/0.1 "
@@ -25,18 +42,50 @@ class OpenLibraryClient:
     def _get_client(self) -> httpx.Client:
         return httpx.Client(timeout=self.timeout, transport=self.transport)
 
-    def search_books(self, query: str, limit: int = 5) -> list[Book]:
-        with self._get_client() as client:
-            return self._search_books(client, query, limit)
+    def _get(self, client: httpx.Client, url: str, **kwargs) -> httpx.Response:
+        """GET with retries on timeouts, connection errors, 429 and 5xx."""
+        for attempt in range(1, self.max_attempts + 1):
+            is_last = attempt == self.max_attempts
+            try:
+                response = client.get(url, headers=self.headers, **kwargs)
+            except httpx.TransportError as exc:
+                if is_last:
+                    raise
+                logger.warning(
+                    "Open Library request failed (%s); attempt %d/%d",
+                    type(exc).__name__,
+                    attempt,
+                    self.max_attempts,
+                )
+            else:
+                if is_last or response.status_code not in RETRYABLE_STATUS:
+                    return response
+                logger.warning(
+                    "Open Library returned %d; attempt %d/%d",
+                    response.status_code,
+                    attempt,
+                    self.max_attempts,
+                )
+            self.sleep(self.backoff * 2 ** (attempt - 1))
 
-    def _search_books(self, client: httpx.Client, query: str, limit: int) -> list[Book]:
+    def search_books(self, query_or_params: str | dict, limit: int = 5) -> list[Book]:
+        with self._get_client() as client:
+            return self._search_books(client, query_or_params, limit)
+
+    def _search_books(
+        self, client: httpx.Client, query_or_params: str | dict, limit: int
+    ) -> list[Book]:
         if limit < 1:
             raise ValueError("limit must be greater than zero")
 
         url = f"{self.BASE_URL}/search.json"
-        params = {"q": query, "limit": limit}
 
-        response = client.get(url, params=params, headers=self.headers)
+        if isinstance(query_or_params, dict):
+            params = {**query_or_params, "limit": limit}
+        else:
+            params = {"q": query_or_params, "limit": limit}
+
+        response = self._get(client, url, params=params)
         response.raise_for_status()
         data = self._json_object(response, "search")
         docs = data.get("docs")
@@ -50,7 +99,7 @@ class OpenLibraryClient:
             key = doc.get("key")
             if not self._is_valid_work_key(key):
                 continue
-            books.append(Book.from_search_doc(doc))
+            books.append(book_from_search_doc(doc))
 
         return books
 
@@ -65,24 +114,23 @@ class OpenLibraryClient:
             raise ValueError(f"Invalid Open Library work key: {work_key!r}")
 
         url = f"{self.BASE_URL}{work_key}.json"
-        response = client.get(url, headers=self.headers)
+        response = self._get(client, url)
         if response.status_code == 404:
             return None
         response.raise_for_status()
         data = self._json_object(response, "work")
 
-        description = data.get("description")
-        if isinstance(description, Mapping):
-            description = description.get("value")
-        return description.strip() or None if isinstance(description, str) else None
+        return extract_description(data.get("description"))
 
-    def search_books_with_descriptions(self, query: str, limit: int = 5) -> list[Book]:
+    def attach_descriptions(self, books: list[Book]) -> list[Book]:
         with self._get_client() as client:
-            books = self._search_books(client, query, limit)
             for book in books:
-                description = self._fetch_work_description(client, book.key)
-                book.update_from_work_data({"description": description})
-            return books
+                try:
+                    description = self._fetch_work_description(client, book.key)
+                except httpx.HTTPError:
+                    description = None
+                book.description = description
+        return books
 
     @classmethod
     def _is_valid_work_key(cls, key: object) -> bool:
