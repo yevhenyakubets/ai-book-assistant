@@ -134,21 +134,54 @@ def test_search_books_rejects_non_positive_limit(client: OpenLibraryClient) -> N
         client.search_books("Foundation", limit=0)
 
 
-def test_search_books_with_descriptions(
-    client: OpenLibraryClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    get_client = client._get_client
-    created_clients = []
+def test_attach_descriptions_attaches_each_book() -> None:
+    docs = [
+        {"key": "/works/OL1W", "title": "One"},
+        {"key": "/works/OL2W", "title": "Two"},
+    ]
 
-    def tracked_get_client() -> httpx.Client:
-        http_client = get_client()
-        created_clients.append(http_client)
-        return http_client
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/search.json"):
+            return httpx.Response(200, json={"docs": docs})
+        work_id = request.url.path.split("/")[-1].removesuffix(".json")
+        return httpx.Response(200, json={"description": f"Description {work_id}"})
 
-    monkeypatch.setattr(client, "_get_client", tracked_get_client)
-    books = client.search_books_with_descriptions("Foundation", limit=1)
+    client = OpenLibraryClient(
+        transport=httpx.MockTransport(handler), sleep=lambda _: None
+    )
+    books = client.search_books({"q": "test"})
 
-    assert len(books) == 1
-    assert books[0].title == "Foundation"
-    assert books[0].description == "An epic sci-fi masterwork."
-    assert len(created_clients) == 1
+    assert client.attach_descriptions(books) == books
+    assert [book.description for book in books] == [
+        "Description OL1W",
+        "Description OL2W",
+    ]
+
+
+def test_attach_descriptions_continues_after_work_lookup_fails() -> None:
+    docs = [
+        {"key": "/works/OL1W", "title": "One"},
+        {"key": "/works/OL2W", "title": "Two"},
+        {"key": "/works/OL3W", "title": "Three"},
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/search.json"):
+            return httpx.Response(200, json={"docs": docs})
+        work_id = request.url.path.split("/")[-1].removesuffix(".json")
+        if work_id == "OL2W":
+            return httpx.Response(500)
+        return httpx.Response(200, json={"description": f"Description {work_id}"})
+
+    client = OpenLibraryClient(
+        transport=httpx.MockTransport(handler), sleep=lambda _: None
+    )
+    books = client.search_books({"q": "test"})
+
+    client.attach_descriptions(books)
+
+    assert [book.description for book in books] == [
+        "Description OL1W",
+        None,
+        "Description OL3W",
+    ]
