@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Protocol
 
 from ai_book_assistant.llm.extractor import CriteriaExtractor
 from ai_book_assistant.models import Book, SearchCriteria
@@ -13,6 +14,12 @@ CLARIFICATION_MESSAGE = (
     "genre, a topic or an author, for example 'a short mystery set in a "
     "village' or 'books by Terry Pratchett'."
 )
+
+
+class BookCatalog(BookSearcher, Protocol):
+    """Everything the assistant needs from its source of books."""
+
+    def attach_descriptions(self, books: list[Book]) -> list[Book]: ...
 
 
 @dataclass
@@ -46,17 +53,19 @@ class BookAssistant:
     def __init__(
         self,
         extractor: CriteriaExtractor,
-        searcher: BookSearcher,
+        catalog: BookCatalog,
         *,
         limit: int = 5,
     ) -> None:
         if limit < 1:
             raise ValueError("limit must be greater than zero")
         self.extractor = extractor
-        self.searcher = searcher
+        self.catalog = catalog
         self.limit = limit
 
     def search(self, query: str) -> AssistantResult:
         criteria = self.extractor.extract(query)
-        outcome = search_with_fallback(criteria, query, self.searcher, limit=self.limit)
+        outcome = search_with_fallback(criteria, query, self.catalog, limit=self.limit)
+        if outcome.books:
+            self.catalog.attach_descriptions(outcome.books)
         return AssistantResult(query, criteria, outcome)
