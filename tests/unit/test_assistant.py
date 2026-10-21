@@ -17,21 +17,28 @@ class FakeExtractor:
         return self.criteria
 
 
-class FakeSearcher:
+class FakeCatalog:
     def __init__(self, books: list[Book]) -> None:
         self.books = books
         self.calls: list[tuple[dict, int]] = []
+        self.described: list[list[Book]] = []
 
     def search_books(self, params: dict, limit: int = 5) -> list[Book]:
         self.calls.append((params, limit))
         return self.books
 
+    def attach_descriptions(self, books: list[Book]) -> list[Book]:
+        self.described.append(books)
+        for book in books:
+            book.description = f"About {book.title}"
+        return books
+
 
 def test_happy_path_returns_books_and_full_strategy() -> None:
     criteria = SearchCriteria(subjects=["fantasy"])
     books = [Book(title="A book", key="/works/OL1W")]
-    searcher = FakeSearcher(books)
-    assistant = BookAssistant(FakeExtractor(criteria), searcher)
+    catalog = FakeCatalog(books)
+    assistant = BookAssistant(FakeExtractor(criteria), catalog)
 
     result = assistant.search("fantasy")
 
@@ -43,28 +50,54 @@ def test_happy_path_returns_books_and_full_strategy() -> None:
     assert not result.needs_clarification
 
 
+def test_descriptions_are_attached_to_the_results() -> None:
+    books = [Book(title="A book", key="/works/OL1W")]
+    catalog = FakeCatalog(books)
+    assistant = BookAssistant(
+        FakeExtractor(SearchCriteria(subjects=["fantasy"])), catalog
+    )
+
+    result = assistant.search("fantasy")
+
+    assert [book.description for book in result.books] == ["About A book"]
+    assert catalog.described == [books]
+
+
 def test_empty_criteria_returns_clarification_without_searching() -> None:
-    searcher = FakeSearcher([])
-    assistant = BookAssistant(FakeExtractor(SearchCriteria()), searcher)
+    catalog = FakeCatalog([])
+    assistant = BookAssistant(FakeExtractor(SearchCriteria()), catalog)
 
     result = assistant.search("recommend a book")
 
     assert result.needs_clarification
     assert result.message == CLARIFICATION_MESSAGE
-    assert searcher.calls == []
+    assert catalog.calls == []
+    assert catalog.described == []
+
+
+def test_no_results_means_no_description_lookups() -> None:
+    catalog = FakeCatalog([])
+    assistant = BookAssistant(
+        FakeExtractor(SearchCriteria(subjects=["fantasy"])), catalog
+    )
+
+    result = assistant.search("fantasy")
+
+    assert result.books == []
+    assert catalog.described == []
 
 
 def test_relaxed_result_is_exposed() -> None:
     books = [Book(title="A book", key="/works/OL1W")]
 
-    class RelaxedSearcher(FakeSearcher):
+    class RelaxedCatalog(FakeCatalog):
         def search_books(self, params: dict, limit: int = 5) -> list[Book]:
             self.calls.append((params, limit))
             return [] if len(self.calls) == 1 else books
 
     result = BookAssistant(
         FakeExtractor(SearchCriteria(subjects=["fantasy"], keywords=["magic"])),
-        RelaxedSearcher([]),
+        RelaxedCatalog([]),
     ).search("fantasy magic")
     assert result.strategy == "without_keywords"
     assert result.relaxed
@@ -72,23 +105,23 @@ def test_relaxed_result_is_exposed() -> None:
 
 def test_extractor_exception_propagates() -> None:
     error = RuntimeError("extraction failed")
-    assistant = BookAssistant(FakeExtractor(error), FakeSearcher([]))
+    assistant = BookAssistant(FakeExtractor(error), FakeCatalog([]))
 
     with pytest.raises(RuntimeError, match="extraction failed"):
         assistant.search("fantasy")
 
 
-def test_limit_is_forwarded_to_searcher() -> None:
-    searcher = FakeSearcher([Book(title="A book", key="/works/OL1W")])
+def test_limit_is_forwarded_to_the_catalog() -> None:
+    catalog = FakeCatalog([Book(title="A book", key="/works/OL1W")])
     assistant = BookAssistant(
-        FakeExtractor(SearchCriteria(subjects=["fantasy"])), searcher, limit=12
+        FakeExtractor(SearchCriteria(subjects=["fantasy"])), catalog, limit=12
     )
 
     assistant.search("fantasy")
 
-    assert searcher.calls[0][1] == 12
+    assert catalog.calls[0][1] == 12
 
 
 def test_limit_must_be_positive() -> None:
     with pytest.raises(ValueError, match="limit must be greater than zero"):
-        BookAssistant(FakeExtractor(SearchCriteria()), FakeSearcher([]), limit=0)
+        BookAssistant(FakeExtractor(SearchCriteria()), FakeCatalog([]), limit=0)

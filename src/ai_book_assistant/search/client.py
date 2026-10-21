@@ -127,7 +127,10 @@ class OpenLibraryClient:
             for book in books:
                 try:
                     description = self._fetch_work_description(client, book.key)
-                except httpx.HTTPError:
+                except (httpx.HTTPError, ValueError) as exc:
+                    logger.warning(
+                        "Could not fetch description for %s: %s", book.key, exc
+                    )
                     description = None
                 book.description = description
         return books
