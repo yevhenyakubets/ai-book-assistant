@@ -113,6 +113,7 @@ def run_query(query, assistant: BookAssistant) -> dict:
         for book in result.books:
             why = result.explanations.get(book.key, "(no explanation)")
             print(f"    - {format_book(book)}")
+            print(f"        Subjects: {', '.join(book.subjects[:8]) or '(none)'}")
             print(f"        {format_description(book)}")
             print(f"        Why: {why}")
     return row
@@ -156,7 +157,15 @@ def main() -> int:
         nargs="*",
         help="Optional queries to run instead of the built-in test list.",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Also print the raw model responses.",
+    )
     args = parser.parse_args()
+    if args.verbose:
+        logging.getLogger("ai_book_assistant").setLevel(logging.DEBUG)
     queries = args.queries or TEST_QUERIES
 
     llm = GroqLLMClient()

@@ -4,7 +4,7 @@ import groq
 import httpx
 import pytest
 
-from ai_book_assistant.llm.client import GroqLLMClient
+from ai_book_assistant.llm.client import DEFAULT_MODEL, GroqLLMClient
 from ai_book_assistant.llm.errors import LLMError
 
 REQUEST = httpx.Request("POST", "https://api.groq.com/openai/v1/chat/completions")
@@ -68,3 +68,14 @@ def test_missing_api_key_is_reported(monkeypatch):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     with pytest.raises(ValueError):
         GroqLLMClient()
+
+
+def test_model_comes_from_the_argument_then_the_environment(monkeypatch):
+    client, _ = fake_groq(reply("{}"))
+
+    monkeypatch.setenv("GROQ_MODEL", "from-env")
+    assert GroqLLMClient(client=client).model == "from-env"
+    assert GroqLLMClient("explicit", client=client).model == "explicit"
+
+    monkeypatch.delenv("GROQ_MODEL")
+    assert GroqLLMClient(client=client).model == DEFAULT_MODEL

@@ -37,7 +37,9 @@ class StructuredGenerator:
         current = prompt
         for attempt in range(1, self.max_attempts + 1):
             try:
-                return validate(load_json(self.llm_client.generate(current)))
+                raw = self.llm_client.generate(current)
+                logger.debug("%s raw response: %r", task, raw)
+                return validate(load_json(raw))
             except ValueError as exc:  # bad JSON or failed validation
                 logger.warning(
                     "%s attempt %d/%d rejected: %s",

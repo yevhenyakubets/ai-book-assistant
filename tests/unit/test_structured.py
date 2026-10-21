@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from ai_book_assistant.llm.structured import StructuredGenerator, load_json
@@ -83,3 +85,11 @@ def test_max_attempts_must_be_positive():
 def test_load_json_rejects_blank_and_non_text(bad):
     with pytest.raises(ValueError):
         load_json(bad)
+
+
+def test_raw_responses_are_logged_at_debug_level(caplog):
+    caplog.set_level(logging.DEBUG, logger="ai_book_assistant.llm.structured")
+
+    run(FakeLLM(['{"name": "x"}']))
+
+    assert '{"name": "x"}' in caplog.text
