@@ -185,3 +185,26 @@ def test_attach_descriptions_continues_after_work_lookup_fails() -> None:
         None,
         "Description OL3W",
     ]
+
+
+def test_attach_descriptions_survives_malformed_work_response() -> None:
+    docs = [
+        {"key": "/works/OL1W", "title": "One"},
+        {"key": "/works/OL2W", "title": "Two"},
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/search.json"):
+            return httpx.Response(200, json={"docs": docs})
+        if request.url.path.endswith("OL1W.json"):
+            return httpx.Response(200, content=b"<html>not json</html>")
+        return httpx.Response(200, json={"description": "A fine book."})
+
+    client = OpenLibraryClient(
+        transport=httpx.MockTransport(handler), sleep=lambda _: None
+    )
+    books = client.search_books({"q": "test"})
+
+    client.attach_descriptions(books)
+
+    assert [book.description for book in books] == [None, "A fine book."]
