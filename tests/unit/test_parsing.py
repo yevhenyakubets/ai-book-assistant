@@ -1,7 +1,9 @@
 import pytest
 
+from ai_book_assistant.models import Book
 from ai_book_assistant.search.parsing import (
     book_from_search_doc,
+    dedupe_books,
     extract_description,
 )
 
@@ -83,3 +85,39 @@ def test_blank_and_punctuation_only_authors_are_dropped() -> None:
 )
 def test_extract_description(value: object, expected: str | None) -> None:
     assert extract_description(value) == expected
+
+
+def _book(key: str, title: str, authors: list[str]) -> Book:
+    return Book(key=key, title=title, authors=authors)
+
+
+def test_dedupe_books_keeps_the_first_of_identical_books() -> None:
+    books = [
+        _book("/works/OL1W", "Space travel", ["Ben Bova"]),
+        _book("/works/OL2W", "Space Travel!", ["Ben  Bova"]),
+        _book("/works/OL3W", "Mind Changer", ["James White"]),
+        _book("/works/OL4W", "Space travel", ["Ben Bova"]),
+    ]
+
+    assert [book.key for book in dedupe_books(books)] == [
+        "/works/OL1W",
+        "/works/OL3W",
+    ]
+
+
+def test_dedupe_books_keeps_same_title_by_different_authors() -> None:
+    books = [
+        _book("/works/OL1W", "Artificial intelligence", ["Stuart Russell"]),
+        _book("/works/OL2W", "Artificial intelligence", ["Patrick Winston"]),
+    ]
+
+    assert len(dedupe_books(books)) == 2
+
+
+def test_dedupe_books_treats_missing_authors_as_equal() -> None:
+    books = [
+        _book("/works/OL1W", "Untitled", []),
+        _book("/works/OL2W", "Untitled", []),
+    ]
+
+    assert [book.key for book in dedupe_books(books)] == ["/works/OL1W"]
