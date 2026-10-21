@@ -208,3 +208,41 @@ def test_attach_descriptions_survives_malformed_work_response() -> None:
     client.attach_descriptions(books)
 
     assert [book.description for book in books] == [None, "A fine book."]
+
+
+def _doc(key: str, title: str, author: str) -> dict:
+    return {"key": key, "title": title, "author_name": [author]}
+
+
+def test_search_books_removes_duplicates_and_still_honors_the_limit() -> None:
+    requested: list[str] = []
+    docs = [
+        _doc("/works/OL1W", "Space travel", "Ben Bova"),
+        _doc("/works/OL2W", "Space travel", "Ben Bova"),
+        _doc("/works/OL3W", "Mind Changer", "James White"),
+        _doc("/works/OL4W", "Space travel", "Ben Bova"),
+        _doc("/works/OL5W", "Foundation", "Isaac Asimov"),
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.append(request.url.params["limit"])
+        return httpx.Response(200, json={"docs": docs})
+
+    client = OpenLibraryClient(transport=httpx.MockTransport(handler))
+    books = client.search_books({"q": "space"}, limit=2)
+
+    assert requested == ["6"]
+    assert [book.key for book in books] == ["/works/OL1W", "/works/OL3W"]
+
+
+def test_search_books_caps_how_many_results_it_requests() -> None:
+    requested: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.append(request.url.params["limit"])
+        return httpx.Response(200, json={"docs": []})
+
+    client = OpenLibraryClient(transport=httpx.MockTransport(handler))
+    client.search_books({"q": "space"}, limit=50)
+
+    assert requested == ["100"]

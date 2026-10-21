@@ -6,11 +6,17 @@ from collections.abc import Mapping
 import httpx
 
 from ai_book_assistant.models import Book
-from ai_book_assistant.search.parsing import book_from_search_doc, extract_description
+from ai_book_assistant.search.parsing import (
+    book_from_search_doc,
+    dedupe_books,
+    extract_description,
+)
 
 logger = logging.getLogger(__name__)
 
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+OVERFETCH_FACTOR = 3
+MAX_FETCH = 100
 
 
 class OpenLibraryClient:
@@ -80,10 +86,12 @@ class OpenLibraryClient:
 
         url = f"{self.BASE_URL}/search.json"
 
+        fetch_limit = max(limit, min(limit * OVERFETCH_FACTOR, MAX_FETCH))
+
         if isinstance(query_or_params, dict):
-            params = {**query_or_params, "limit": limit}
+            params = {**query_or_params, "limit": fetch_limit}
         else:
-            params = {"q": query_or_params, "limit": limit}
+            params = {"q": query_or_params, "limit": fetch_limit}
 
         response = self._get(client, url, params=params)
         response.raise_for_status()
@@ -101,7 +109,7 @@ class OpenLibraryClient:
                 continue
             books.append(book_from_search_doc(doc))
 
-        return books
+        return dedupe_books(books)[:limit]
 
     def fetch_work_description(self, work_key: str) -> str | None:
         with self._get_client() as client:
