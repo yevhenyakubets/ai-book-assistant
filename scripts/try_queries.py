@@ -55,12 +55,19 @@ def format_book(book) -> str:
     return f"{book.title} - {authors} ({year})"
 
 
+def format_description(book, width: int = 100) -> str:
+    if not book.description:
+        return "(no description)"
+    text = " ".join(book.description.split())
+    return text if len(text) <= width else text[: width - 3] + "..."
+
+
 def run_query(query, assistant: BookAssistant) -> dict:
     """Run one query end to end and return a summary row."""
     print("=" * 78)
     print(f"QUERY: {query!r}")
 
-    row = {"query": query, "rung": "-", "count": 0, "status": "ok"}
+    row = {"query": query, "rung": "-", "count": 0, "described": 0, "status": "ok"}
 
     try:
         result = assistant.search(query)
@@ -84,6 +91,7 @@ def run_query(query, assistant: BookAssistant) -> dict:
 
     row["rung"] = result.strategy
     row["count"] = len(result.books)
+    row["described"] = sum(1 for book in result.books if book.description)
     marker = " (relaxed)" if result.relaxed else ""
     print(f"  Strategy: {result.strategy}{marker}")
     print(f"  Attempts: {outcome.attempts}")
@@ -95,6 +103,7 @@ def run_query(query, assistant: BookAssistant) -> dict:
         print(f"  Found {len(result.books)} books:")
         for book in result.books:
             print(f"    - {format_book(book)}")
+            print(f"        {format_description(book)}")
     return row
 
 
@@ -122,6 +131,9 @@ def print_summary(rows) -> None:
         f"\n{len(rows)} queries | {relaxed} relaxed | {empty} with no results | "
         f"{clarify} need clarification | {failed} failed"
     )
+    books_total = sum(r["count"] for r in rows)
+    described_total = sum(r["described"] for r in rows)
+    print(f"{described_total}/{books_total} books have a description")
 
 
 def main() -> int:
