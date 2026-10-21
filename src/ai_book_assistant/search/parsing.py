@@ -4,6 +4,11 @@ from collections.abc import Mapping
 from ai_book_assistant.models import Book
 
 
+def _fingerprint(text: str) -> str:
+    """Lowercase text without spacing or punctuation, for comparing names."""
+    return re.sub(r"[\W_]+", "", text).casefold()
+
+
 def dedupe_names(names: list[str]) -> list[str]:
     """Drop repeated names, ignoring case, spacing and punctuation.
 
@@ -14,10 +19,27 @@ def dedupe_names(names: list[str]) -> list[str]:
     unique: list[str] = []
     for name in names:
         cleaned = " ".join(name.split())
-        fingerprint = re.sub(r"[\W_]+", "", cleaned).casefold()
+        fingerprint = _fingerprint(cleaned)
         if cleaned and fingerprint and fingerprint not in seen:
             seen.add(fingerprint)
             unique.append(cleaned)
+    return unique
+
+
+def dedupe_books(books: list[Book]) -> list[Book]:
+    """Drop books that repeat an earlier title and first author.
+
+    Open Library often has several works for the same book. The first
+    one, which is the most relevant, is kept.
+    """
+    seen: set[tuple[str, str]] = set()
+    unique: list[Book] = []
+    for book in books:
+        first_author = book.authors[0] if book.authors else ""
+        fingerprint = (_fingerprint(book.title), _fingerprint(first_author))
+        if fingerprint not in seen:
+            seen.add(fingerprint)
+            unique.append(book)
     return unique
 
 
