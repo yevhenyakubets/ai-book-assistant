@@ -77,3 +77,18 @@ def test_the_query_is_passed_through_unchanged():
 
 def test_prompt_ends_waiting_for_the_output():
     assert _prompt([_book(1)]).endswith("Output:")
+
+
+def test_length_is_reported_as_unverifiable_not_as_a_preference():
+    criteria = SearchCriteria.model_validate(
+        {"subjects": ["fantasy"], "preferences": {"length": "short"}}
+    )
+
+    payload = _payload(_prompt([_book(1)], criteria=criteria))
+
+    assert payload["cannot_be_checked"] == ["length: short"]
+    assert "length" not in payload["preferences"]
+
+
+def test_nothing_is_unverifiable_when_no_length_was_asked():
+    assert _payload(_prompt([_book(1)]))["cannot_be_checked"] == []

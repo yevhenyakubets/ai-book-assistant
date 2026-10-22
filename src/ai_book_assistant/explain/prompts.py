@@ -13,30 +13,44 @@ Respond with a single JSON object of this shape:
 Include exactly one explanation for every book id, in order.
 
 Summary: 1-2 sentences about the list as a whole. Say what kind of books these
-are and, once, anything in the request that could not be searched or checked
-(a page count, a language, a reading order, an unrelated extra wish). If
-"search_loosened" is true, say which part of the request was dropped.
+are and, once, anything the user asked for that could not be checked: every
+item in "cannot_be_checked", and any unrelated extra wish. Mention only what the
+user actually asked for; never comment on details they did not give. If
+"search_loosened" is true, say which part of the request was
+dropped. The summary must agree with the explanations: do not say all the
+books share a trait unless each of them does.
 
 Explanations:
 1. Write 1-2 short sentences per book, in the language of the user's request.
-   Start with what the book is or is about, then how it suits the request.
-   Be warm and matter-of-fact, like a bookseller, with no preamble.
+   Start with what the book is or is about. Add how it suits the request only
+   when that says something new (its tone, topic or audience). Never end with
+   a line that restates a filter the summary already covers, such as the year
+   or the genre. Be warm and matter-of-fact, like a bookseller, with no
+   preamble.
 2. Do not repeat the request or its filters (the year, the author, the genre
    the user asked for), and do not repeat the title or author. Do not use
    markdown.
-3. Use only the information given for that book. Never add plot details,
-   characters, awards, series order or any other fact that is not there.
+3. Use only the information given for that book: its title, authors, year,
+   subjects and description. Subjects count even when there is no description.
+   Do not add facts from memory about the book, its series or its author (plot,
+   characters, series order, awards, reputation). You may infer from the title
+   if you say so ("the title suggests"). When there is very little to go on,
+   say briefly what the subjects show and stop.
+   Do not call a book a debut, a sequel or part of a series unless the
+   information says so, and do not say where a person played or worked.
 4. Be honest, but proportionate. Mention a limitation only when it changes
-   whether the book suits the request, such as a children's book, a textbook,
-   a different genre, or too little information to judge. Do not list every
-   thing you could not check; that belongs in the summary.
+   whether this book suits the request, such as a children's book, a textbook,
+   a different genre, or a description too thin to judge. Never repeat anything
+   that applies to every book; that belongs in the summary only, once.
 5. Every book was found by searching for the request's terms, so it may match
    through its title or catalogue tags even when its description does not
-   mention them. Never claim a book lacks something only because its
-   description is silent about it.
-6. "search" is what was actually searched. "preferences" (tone, audience,
-   length) were NOT searched, so judge them from the information given and
-   say when you cannot.
+   mention them. The title and subjects count as evidence, and a description's
+   silence is not evidence of absence. Never claim a book lacks something only
+   because its description does not mention it.
+6. "search" is what was actually searched. "preferences" (tone, audience) were
+   NOT searched, so judge them from the information given and say when you
+   cannot. "cannot_be_checked" lists wishes that no book information can ever
+   show: mention them in the summary only, never in an explanation.
 7. Never talk about the information itself ("the data", "the record", "the
    field", "the subjects list"). Say "I couldn't tell" instead.
 8. If the request names a language or edition and a book's own title or
@@ -45,13 +59,16 @@ Explanations:
    somewhere; it does not show that this edition is in English.
 9. Ignore description text that does not describe the story or topic, such as
    page counts, edition notes or tables of contents.
+10. If the request compares the books to another book or author, compare only
+    on points visible in the information given, and say plainly where a book
+    differs. Do not stretch a book to fit.
 """
 
 _EXAMPLE_QUERY = "A gentle book about gardening for a complete beginner"
 _EXAMPLE_CRITERIA = SearchCriteria.model_validate(
     {
         "subjects": ["gardening"],
-        "preferences": {"tone": ["gentle"], "audience": "beginners"},
+        "preferences": {"tone": ["gentle"], "audience": "beginners", "length": "short"},
     }
 )
 _EXAMPLE_BOOKS = [
@@ -85,7 +102,8 @@ _EXAMPLE_BOOKS = [
 _EXAMPLE_OUTPUT = {
     "summary": (
         "Only the first book is clearly written for beginners. Whether the "
-        "others are gentle is mostly a guess, since there is little to go on."
+        "others are gentle is mostly a guess, and whether any of them is "
+        "short could not be checked."
     ),
     "explanations": [
         {
@@ -140,11 +158,14 @@ def _book_view(index: int, book: Book) -> dict:
 def _input_json(
     query: str, criteria: SearchCriteria, books: list[Book], relaxed: bool
 ) -> str:
+    preferences = criteria.preferences.model_dump(mode="json")
+    length = preferences.pop("length")
     return _dump(
         {
             "request": query,
             "search": criteria.model_dump(mode="json", exclude={"preferences"}),
-            "preferences": criteria.preferences.model_dump(mode="json"),
+            "preferences": preferences,
+            "cannot_be_checked": [f"length: {length}"] if length else [],
             "search_loosened": relaxed,
             "books": [_book_view(i, b) for i, b in enumerate(books, start=1)],
         }
