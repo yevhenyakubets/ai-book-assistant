@@ -100,7 +100,7 @@ def run_query(query, assistant: BookAssistant) -> dict:
     row["rung"] = result.strategy
     row["count"] = len(result.books)
     row["described"] = sum(1 for book in result.books if book.description)
-    row["explained"] = len(result.explanations)
+    row["explained"] = len(result.explanations.by_book)
     marker = " (relaxed)" if result.relaxed else ""
     print(f"  Strategy: {result.strategy}{marker}")
     print(f"  Attempts: {outcome.attempts}")
@@ -110,8 +110,10 @@ def run_query(query, assistant: BookAssistant) -> dict:
         print("  Found 0 books.")
     else:
         print(f"  Found {len(result.books)} books:")
+        if result.explanations.summary:
+            print(f"  Summary: {result.explanations.summary}")
         for book in result.books:
-            why = result.explanations.get(book.key, "(no explanation)")
+            why = result.explanations.by_book.get(book.key, "(no explanation)")
             print(f"    - {format_book(book)}")
             print(f"        Subjects: {', '.join(book.subjects[:8]) or '(none)'}")
             print(f"        {format_description(book)}")

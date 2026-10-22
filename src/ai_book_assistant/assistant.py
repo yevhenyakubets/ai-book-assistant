@@ -4,7 +4,7 @@ from typing import Protocol
 
 from ai_book_assistant.llm.errors import LLMError
 from ai_book_assistant.llm.extractor import CriteriaExtractor
-from ai_book_assistant.models import Book, SearchCriteria
+from ai_book_assistant.models import Book, Explanations, SearchCriteria
 from ai_book_assistant.search.fallback import (
     BookSearcher,
     SearchOutcome,
@@ -34,7 +34,7 @@ class Explainer(Protocol):
         books: list[Book],
         *,
         relaxed: bool = False,
-    ) -> dict[str, str]: ...
+    ) -> Explanations: ...
 
 
 @dataclass
@@ -42,7 +42,7 @@ class AssistantResult:
     query: str
     criteria: SearchCriteria
     outcome: SearchOutcome
-    explanations: dict[str, str] = field(default_factory=dict)
+    explanations: Explanations = field(default_factory=Explanations)
 
     @property
     def books(self) -> list[Book]:
@@ -85,7 +85,7 @@ class BookAssistant:
         criteria = self.extractor.extract(query)
         outcome = search_with_fallback(criteria, query, self.catalog, limit=self.limit)
 
-        explanations: dict[str, str] = {}
+        explanations = Explanations()
         if outcome.books:
             self.catalog.attach_descriptions(outcome.books)
             explanations = self._explain(query, criteria, outcome)
@@ -93,9 +93,9 @@ class BookAssistant:
 
     def _explain(
         self, query: str, criteria: SearchCriteria, outcome: SearchOutcome
-    ) -> dict[str, str]:
+    ) -> Explanations:
         if self.explainer is None:
-            return {}
+            return Explanations()
         try:
             return self.explainer.explain(
                 query, criteria, outcome.books, relaxed=outcome.relaxed
@@ -103,4 +103,4 @@ class BookAssistant:
         except LLMError as exc:
             # The books are already found; losing the explanations must not lose them.
             logger.warning("Could not generate explanations: %s", exc)
-            return {}
+            return Explanations()

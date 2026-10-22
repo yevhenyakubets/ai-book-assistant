@@ -5,7 +5,7 @@ from ai_book_assistant.assistant import (
     BookAssistant,
 )
 from ai_book_assistant.llm.errors import LLMError
-from ai_book_assistant.models import Book, SearchCriteria
+from ai_book_assistant.models import Book, Explanations, SearchCriteria
 
 
 class FakeExtractor:
@@ -44,8 +44,10 @@ class RelaxedCatalog(FakeCatalog):
 
 
 class FakeExplainer:
-    def __init__(self, result=None, error: Exception | None = None) -> None:
-        self.result = result if result is not None else {}
+    def __init__(
+        self, result: Explanations | None = None, error: Exception | None = None
+    ) -> None:
+        self.result = Explanations() if result is None else result
         self.error = error
         self.calls: list[tuple] = []
 
@@ -145,11 +147,12 @@ def test_limit_must_be_positive() -> None:
 
 
 def test_explanations_are_returned_with_the_result() -> None:
-    explainer = FakeExplainer({"/works/OL1W": "It fits."})
+    explanations = Explanations(summary="Overall.", by_book={"/works/OL1W": "It fits."})
+    explainer = FakeExplainer(explanations)
 
     result = _assistant(FakeCatalog([_book()]), explainer).search("fantasy")
 
-    assert result.explanations == {"/works/OL1W": "It fits."}
+    assert result.explanations == explanations
 
 
 def test_explainer_sees_the_books_with_their_descriptions() -> None:
@@ -175,7 +178,7 @@ def test_relaxed_flag_is_forwarded_to_the_explainer() -> None:
 def test_without_an_explainer_there_are_no_explanations() -> None:
     result = _assistant(FakeCatalog([_book()])).search("fantasy")
 
-    assert result.explanations == {}
+    assert result.explanations == Explanations()
     assert len(result.books) == 1
 
 
@@ -185,7 +188,7 @@ def test_llm_failure_while_explaining_keeps_the_books() -> None:
     result = _assistant(FakeCatalog([_book()]), explainer).search("fantasy")
 
     assert len(result.books) == 1
-    assert result.explanations == {}
+    assert result.explanations == Explanations()
 
 
 def test_unexpected_explainer_errors_propagate() -> None:

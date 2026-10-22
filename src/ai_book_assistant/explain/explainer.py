@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from ai_book_assistant.explain.prompts import build_explanation_prompt
 from ai_book_assistant.llm.base import LLMClient
 from ai_book_assistant.llm.structured import StructuredGenerator
-from ai_book_assistant.models import Book, SearchCriteria
+from ai_book_assistant.models import Book, Explanations, SearchCriteria
 
 logger = logging.getLogger(__name__)
 
@@ -16,23 +16,30 @@ class _Item(BaseModel):
 
 
 class _Response(BaseModel):
+    summary: str | None = None
     explanations: list[_Item]
 
 
-def _validate(data: object, count: int) -> dict[int, str]:
+def _clean(text: str) -> str:
+    """Collapse whitespace and replace non-breaking hyphens with plain ones."""
+    return " ".join(text.replace("\u2011", "-").split())
+
+
+def _validate(data: object, count: int) -> tuple[str | None, dict[int, str]]:
     """Keep usable explanations; ignore unknown ids, blanks and duplicates."""
+    response = _Response.model_validate(data)
     found: dict[int, str] = {}
-    for item in _Response.model_validate(data).explanations:
-        text = " ".join(item.explanation.split())
+    for item in response.explanations:
+        text = _clean(item.explanation)
         if 1 <= item.id <= count and text and item.id not in found:
             found[item.id] = text
     if not found:
         raise ValueError("the response contained no usable explanations")
-    return found
+    return _clean(response.summary or "") or None, found
 
 
 class BookExplainer:
-    """Explains, in one LLM call, why each book fits the user's request."""
+    """Explains, in one LLM call, why the books fit the user's request."""
 
     def __init__(self, llm_client: LLMClient, max_attempts: int = 2) -> None:
         self.generator = StructuredGenerator(llm_client, max_attempts)
@@ -44,17 +51,20 @@ class BookExplainer:
         books: list[Book],
         *,
         relaxed: bool = False,
-    ) -> dict[str, str]:
-        """Return {book key: explanation}; empty if nothing usable came back."""
+    ) -> Explanations:
+        """Return a summary and per-book texts; empty if nothing usable came back."""
         if not books:
-            return {}
+            return Explanations()
 
-        by_id = self.generator.generate(
+        result = self.generator.generate(
             build_explanation_prompt(query, criteria, books, relaxed=relaxed),
             lambda data: _validate(data, len(books)),
             task="Explanation",
         )
-        if by_id is None:
+        if result is None:
             logger.warning("Explanation failed; returning books without explanations")
-            return {}
-        return {books[i - 1].key: text for i, text in by_id.items()}
+            return Explanations()
+
+        summary, by_id = result
+        by_book = {books[i - 1].key: text for i, text in by_id.items()}
+        return Explanations(summary=summary, by_book=by_book)
