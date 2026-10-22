@@ -14,7 +14,7 @@ DEFAULT_MODEL = "openai/gpt-oss-120b"
 class GroqLLMClient:
     def __init__(
         self,
-        model: str = DEFAULT_MODEL,
+        model: str | None = None,
         *,
         client: object | None = None,
         max_retries: int = 3,
@@ -27,7 +27,7 @@ class GroqLLMClient:
             # The SDK retries connection errors, 429 and 5xx with backoff.
             client = Groq(api_key=api_key, max_retries=max_retries, timeout=timeout)
         self.client = client
-        self.model = model
+        self.model = model or os.getenv("GROQ_MODEL") or DEFAULT_MODEL
 
     def generate(self, prompt: str) -> str:
         try:

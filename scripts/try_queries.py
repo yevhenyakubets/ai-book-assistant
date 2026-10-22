@@ -6,6 +6,7 @@ import time
 from dotenv import load_dotenv
 
 from ai_book_assistant.assistant import BookAssistant
+from ai_book_assistant.explain import BookExplainer
 from ai_book_assistant.llm.client import GroqLLMClient
 from ai_book_assistant.llm.errors import LLMError
 from ai_book_assistant.llm.extractor import CriteriaExtractor
@@ -67,7 +68,14 @@ def run_query(query, assistant: BookAssistant) -> dict:
     print("=" * 78)
     print(f"QUERY: {query!r}")
 
-    row = {"query": query, "rung": "-", "count": 0, "described": 0, "status": "ok"}
+    row = {
+        "query": query,
+        "rung": "-",
+        "count": 0,
+        "described": 0,
+        "explained": 0,
+        "status": "ok",
+    }
 
     try:
         result = assistant.search(query)
@@ -92,6 +100,7 @@ def run_query(query, assistant: BookAssistant) -> dict:
     row["rung"] = result.strategy
     row["count"] = len(result.books)
     row["described"] = sum(1 for book in result.books if book.description)
+    row["explained"] = len(result.explanations.by_book)
     marker = " (relaxed)" if result.relaxed else ""
     print(f"  Strategy: {result.strategy}{marker}")
     print(f"  Attempts: {outcome.attempts}")
@@ -101,9 +110,14 @@ def run_query(query, assistant: BookAssistant) -> dict:
         print("  Found 0 books.")
     else:
         print(f"  Found {len(result.books)} books:")
+        if result.explanations.summary:
+            print(f"  Summary: {result.explanations.summary}")
         for book in result.books:
+            why = result.explanations.by_book.get(book.key, "(no explanation)")
             print(f"    - {format_book(book)}")
+            print(f"        Subjects: {', '.join(book.subjects[:8]) or '(none)'}")
             print(f"        {format_description(book)}")
+            print(f"        Why: {why}")
     return row
 
 
@@ -134,6 +148,8 @@ def print_summary(rows) -> None:
     books_total = sum(r["count"] for r in rows)
     described_total = sum(r["described"] for r in rows)
     print(f"{described_total}/{books_total} books have a description")
+    explained_total = sum(r["explained"] for r in rows)
+    print(f"{explained_total}/{books_total} books have an explanation")
 
 
 def main() -> int:
@@ -143,12 +159,23 @@ def main() -> int:
         nargs="*",
         help="Optional queries to run instead of the built-in test list.",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Also print the raw model responses.",
+    )
     args = parser.parse_args()
+    if args.verbose:
+        logging.getLogger("ai_book_assistant").setLevel(logging.DEBUG)
     queries = args.queries or TEST_QUERIES
 
-    extractor = CriteriaExtractor(GroqLLMClient())
-    library = OpenLibraryClient()
-    assistant = BookAssistant(extractor, library)
+    llm = GroqLLMClient()
+    assistant = BookAssistant(
+        CriteriaExtractor(llm),
+        OpenLibraryClient(),
+        explainer=BookExplainer(llm),
+    )
 
     rows = []
     for i, query in enumerate(queries):
