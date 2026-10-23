@@ -154,3 +154,73 @@ def test_an_unreachable_catalogue_is_a_bad_gateway(history):
     assert response.status_code == 502
     assert "Open Library" in response.json()["detail"]
     assert history.list_recent() == []
+
+
+def test_history_starts_empty(history):
+    assert client_for(FakeAssistant(), history).get("/history").json() == []
+
+
+def test_history_lists_searches_newest_first_without_snapshots(history):
+    client = client_for(FakeAssistant(found()), history)
+    for query in ("one", "two", "three"):
+        client.post("/search", json={"query": query})
+
+    entries = client.get("/history").json()
+
+    assert [entry["query"] for entry in entries] == ["three", "two", "one"]
+    assert set(entries[0]) == {"id", "created_at", "query", "strategy"}
+
+
+def test_history_supports_paging(history):
+    client = client_for(FakeAssistant(found()), history)
+    for query in ("one", "two", "three"):
+        client.post("/search", json={"query": query})
+
+    entries = client.get("/history?limit=2&offset=1").json()
+
+    assert [entry["query"] for entry in entries] == ["two", "one"]
+
+
+@pytest.mark.parametrize("params", ["limit=0", "limit=101", "offset=-1", "limit=abc"])
+def test_history_rejects_bad_paging(history, params):
+    response = client_for(FakeAssistant(), history).get(f"/history?{params}")
+
+    assert response.status_code == 422
+
+
+def test_a_saved_search_can_be_opened_again(history):
+    client = client_for(FakeAssistant(found()), history)
+    created = client.post("/search", json={"query": "fantasy"}).json()
+
+    replayed = client.get(f"/history/{created['id']}")
+
+    assert replayed.status_code == 200
+    assert replayed.json() == created
+
+
+def test_a_saved_clarification_keeps_its_message(history):
+    client = client_for(FakeAssistant(needs_clarification()), history)
+    created = client.post("/search", json={"query": "a good book"}).json()
+
+    replayed = client.get(f"/history/{created['id']}").json()
+
+    assert replayed["message"] == CLARIFICATION_MESSAGE
+
+
+def test_an_unknown_search_is_not_found(history):
+    response = client_for(FakeAssistant(), history).get("/history/999")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Search not found"}
+
+
+def test_a_non_numeric_search_id_is_rejected(history):
+    response = client_for(FakeAssistant(), history).get("/history/abc")
+
+    assert response.status_code == 422
+
+
+def test_the_docs_list_every_endpoint(history):
+    paths = client_for(FakeAssistant(), history).get("/openapi.json").json()["paths"]
+
+    assert set(paths) == {"/health", "/search", "/history", "/history/{search_id}"}

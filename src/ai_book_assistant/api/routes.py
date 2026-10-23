@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from ai_book_assistant.api.schemas import (
     ErrorResponse,
@@ -9,6 +9,7 @@ from ai_book_assistant.api.schemas import (
     to_response,
 )
 from ai_book_assistant.assistant import BookAssistant
+from ai_book_assistant.models import HistoryEntry
 from ai_book_assistant.storage import SearchHistory
 
 router = APIRouter()
@@ -63,4 +64,30 @@ def search(
         books=result.books,
         explanations=result.explanations,
     )
+    return to_response(record)
+
+
+@router.get(
+    "/history",
+    response_model=list[HistoryEntry],
+    summary="List past searches, newest first",
+)
+def list_history(
+    history: HistoryDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[HistoryEntry]:
+    return history.list_recent(limit=limit, offset=offset)
+
+
+@router.get(
+    "/history/{search_id}",
+    response_model=SearchResponse,
+    responses={404: {"model": ErrorResponse, "description": "No such search"}},
+    summary="Show a past search exactly as it was returned",
+)
+def get_search(search_id: int, history: HistoryDep) -> SearchResponse:
+    record = history.get(search_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Search not found")
     return to_response(record)
