@@ -5,12 +5,8 @@ import time
 
 from dotenv import load_dotenv
 
-from ai_book_assistant.assistant import BookAssistant
-from ai_book_assistant.explain import BookExplainer
-from ai_book_assistant.llm.client import GroqLLMClient
+from ai_book_assistant.bootstrap import build_assistant
 from ai_book_assistant.llm.errors import LLMError
-from ai_book_assistant.llm.extractor import CriteriaExtractor
-from ai_book_assistant.search.client import OpenLibraryClient
 
 load_dotenv()
 
@@ -63,7 +59,7 @@ def format_description(book, width: int = 100) -> str:
     return text if len(text) <= width else text[: width - 3] + "..."
 
 
-def run_query(query, assistant: BookAssistant) -> dict:
+def run_query(query, assistant) -> dict:
     """Run one query end to end and return a summary row."""
     print("=" * 78)
     print(f"QUERY: {query!r}")
@@ -170,12 +166,7 @@ def main() -> int:
         logging.getLogger("ai_book_assistant").setLevel(logging.DEBUG)
     queries = args.queries or TEST_QUERIES
 
-    llm = GroqLLMClient()
-    assistant = BookAssistant(
-        CriteriaExtractor(llm),
-        OpenLibraryClient(),
-        explainer=BookExplainer(llm),
-    )
+    assistant = build_assistant()
 
     rows = []
     for i, query in enumerate(queries):
