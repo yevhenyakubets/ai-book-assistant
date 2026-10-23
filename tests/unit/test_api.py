@@ -64,7 +64,7 @@ def test_health(history):
     assert response.json() == {"status": "ok"}
 
 
-def test_search_returns_books_explanations_and_a_history_id(history):
+def test_search_returns_results_with_their_explanations(history):
     client = client_for(FakeAssistant(found()), history)
 
     response = client.post("/search", json={"query": "fantasy"})
@@ -75,9 +75,17 @@ def test_search_returns_books_explanations_and_a_history_id(history):
     assert body["query"] == "fantasy"
     assert body["strategy"] == "full"
     assert body["message"] is None
-    assert body["books"][0]["title"] == "The Hobbit"
-    assert body["explanations"]["summary"] == "Overall."
-    assert body["explanations"]["by_book"] == {"/works/OL1W": "It fits."}
+    assert body["summary"] == "Overall."
+    assert body["results"] == [
+        {
+            "title": "The Hobbit",
+            "authors": ["J.R.R. Tolkien"],
+            "first_publish_year": 1937,
+            "description": None,
+            "explanation": "It fits.",
+            "url": "https://openlibrary.org/works/OL1W",
+        }
+    ]
 
 
 def test_every_search_is_saved(history):
@@ -108,7 +116,7 @@ def test_a_vague_query_returns_the_message_and_is_saved(history):
     assert response.status_code == 200
     assert body["strategy"] == "needs_clarification"
     assert body["message"] == CLARIFICATION_MESSAGE
-    assert body["books"] == []
+    assert body["results"] == []
     assert history.get(body["id"]) is not None
 
 
@@ -224,3 +232,26 @@ def test_the_docs_list_every_endpoint(history):
     paths = client_for(FakeAssistant(), history).get("/openapi.json").json()["paths"]
 
     assert set(paths) == {"/health", "/search", "/history", "/history/{search_id}"}
+
+
+def test_results_leave_out_noisy_catalogue_fields(history):
+    noisy = Book(
+        key="/works/OL2W",
+        title="Noisy",
+        subjects=["Fantasy", "Fiction"],
+        covers=[123],
+    )
+    result = AssistantResult(
+        "ignored",
+        SearchCriteria(subjects=["fantasy"]),
+        SearchOutcome([noisy], "full", None, []),
+    )
+
+    body = client_for(FakeAssistant(result), history).post(
+        "/search", json={"query": "x"}
+    )
+
+    book = body.json()["results"][0]
+    assert "subjects" not in book
+    assert "covers" not in book
+    assert book["explanation"] is None
