@@ -11,7 +11,7 @@ def ignore_dotenv_file(monkeypatch):
 
 def test_default_app_uses_the_configured_database(monkeypatch, tmp_path):
     database = tmp_path / "data" / "history.db"
-    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setenv("DATABASE_PATH", str(database))
 
     client = TestClient(create_default_app())
@@ -22,10 +22,10 @@ def test_default_app_uses_the_configured_database(monkeypatch, tmp_path):
 
 
 def test_default_app_refuses_to_start_without_an_api_key(monkeypatch, tmp_path):
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "history.db"))
 
-    with pytest.raises(ValueError, match="GROQ_API_KEY"):
+    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
         create_default_app()
 
 
