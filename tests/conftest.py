@@ -3,9 +3,27 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 
-from ai_book_assistant.models import Book, SearchCriteria
+from ai_book_assistant.assistant import AssistantResult
+from ai_book_assistant.models import Book, Explanations, SearchCriteria
 from ai_book_assistant.search import OpenLibraryClient
+from ai_book_assistant.search.fallback import SearchOutcome
 from ai_book_assistant.storage import SqliteSearchHistory
+
+
+class FakeAssistant:
+    def __init__(
+        self, result: AssistantResult | None = None, error: Exception | None = None
+    ) -> None:
+        self.result = result
+        self.error = error
+        self.queries: list[str] = []
+
+    def search(self, query: str) -> AssistantResult:
+        self.queries.append(query)
+        if self.error:
+            raise self.error
+        assert self.result is not None
+        return self.result
 
 
 class FakeLLM:
@@ -26,6 +44,36 @@ class _HistoryClock:
         current = self.now
         self.now += timedelta(minutes=1)
         return current
+
+
+@pytest.fixture
+def fake_clock() -> _HistoryClock:
+    return _HistoryClock()
+
+
+@pytest.fixture
+def make_assistant():
+    def factory(
+        result: AssistantResult | None = None, error: Exception | None = None
+    ) -> FakeAssistant:
+        return FakeAssistant(result=result, error=error)
+
+    return factory
+
+
+@pytest.fixture
+def found_result():
+    def factory(book: Book) -> AssistantResult:
+        return AssistantResult(
+            query="ignored",
+            criteria=SearchCriteria(subjects=["fantasy"]),
+            outcome=SearchOutcome([book], "full", {"q": "fantasy"}),
+            explanations=Explanations(
+                summary="Overall.", by_book={"/works/OL1W": "It fits."}
+            ),
+        )
+
+    return factory
 
 
 @pytest.fixture
@@ -54,8 +102,8 @@ def make_criteria():
 
 
 @pytest.fixture
-def history(tmp_path):
-    return SqliteSearchHistory(tmp_path / "history.db", clock=_HistoryClock())
+def history(tmp_path, fake_clock):
+    return SqliteSearchHistory(tmp_path / "history.db", clock=fake_clock)
 
 
 @pytest.fixture
