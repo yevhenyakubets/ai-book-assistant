@@ -14,13 +14,14 @@ from ai_book_assistant.search.parsing import (
 
 logger = logging.getLogger(__name__)
 
+OPEN_LIBRARY_URL = "https://openlibrary.org"
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 OVERFETCH_FACTOR = 3
 MAX_FETCH = 100
 
 
 class OpenLibraryClient:
-    BASE_URL = "https://openlibrary.org"
+    BASE_URL = OPEN_LIBRARY_URL
     WORK_KEY_PATTERN = re.compile(r"/works/[A-Za-z0-9_-]+")
 
     def __init__(

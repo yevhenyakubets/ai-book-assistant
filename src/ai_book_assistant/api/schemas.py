@@ -5,9 +5,10 @@ from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from ai_book_assistant.assistant import CLARIFICATION_MESSAGE
 from ai_book_assistant.models import Book, SearchCriteria, SearchRecord
+from ai_book_assistant.models.strategy import NEEDS_CLARIFICATION
+from ai_book_assistant.search.client import OPEN_LIBRARY_URL
 
 MAX_QUERY_LENGTH = 500
-OPEN_LIBRARY_URL = "https://openlibrary.org"
 
 Query = Annotated[
     str,
@@ -66,7 +67,7 @@ def _book_result(book: Book, explanations: dict[str, str]) -> BookResult:
 
 def to_response(record: SearchRecord) -> SearchResponse:
     explanations = record.explanations.by_book
-    needs_clarification = record.strategy == "needs_clarification"
+    needs_clarification = record.strategy == NEEDS_CLARIFICATION
     return SearchResponse(
         id=record.id,
         created_at=record.created_at,

@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from ai_book_assistant.models import Book, SearchCriteria
+from ai_book_assistant.models.strategy import FULL, NEEDS_CLARIFICATION, NO_RESULTS
 from ai_book_assistant.search.query_builder import (
     build_raw_params,
     build_search_params,
@@ -25,7 +26,7 @@ class Rung:
 # Strictest first. Keywords go first because they are the least reliable
 # part of the extraction; years are explicit user constraints, so they go last.
 RUNGS = (
-    Rung("full"),
+    Rung(FULL),
     Rung("without_keywords", include_keywords=False),
     Rung("primary_subject", include_keywords=False, max_subjects=1),
     Rung(
@@ -48,7 +49,7 @@ class SearchOutcome:
     @property
     def relaxed(self) -> bool:
         """True when the search had to be loosened from the full criteria."""
-        return self.rung not in ("full", "none", "needs_clarification")
+        return self.rung not in (FULL, NO_RESULTS, NEEDS_CLARIFICATION)
 
 
 def _is_searchable(criteria: SearchCriteria, rung: Rung) -> bool:
@@ -100,11 +101,11 @@ def search_with_fallback(
     attempts: list[tuple[str, int]] = []
     if not criteria.is_searchable:
         return SearchOutcome(
-            [], "needs_clarification", None, [], needs_clarification=True
+            [], NEEDS_CLARIFICATION, None, [], needs_clarification=True
         )
     for name, params in candidate_queries(criteria, raw_query):
         books = client.search_books(params, limit)
         attempts.append((name, len(books)))
         if len(books) >= min_results:
             return SearchOutcome(books, name, params, attempts)
-    return SearchOutcome([], "none", None, attempts)
+    return SearchOutcome([], NO_RESULTS, None, attempts)
