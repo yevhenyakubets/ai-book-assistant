@@ -14,7 +14,7 @@ DEFAULT_DATABASE_PATH = "data/history.db"
 
 
 def create_default_app() -> FastAPI:
-    """Build the real application: Groq, Open Library and a SQLite history file.
+    """Build the real application: OpenAI, Open Library and a SQLite history file.
 
     Run it with:
         uvicorn --factory ai_book_assistant.api.main:create_default_app

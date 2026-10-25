@@ -11,6 +11,7 @@ from ai_book_assistant.llm.errors import LLMError
 load_dotenv()
 
 logging.basicConfig(level=logging.WARNING, format="  [%(levelname)s] %(message)s")
+logging.getLogger("ai_book_assistant.llm.client").setLevel(logging.INFO)
 
 
 TEST_QUERIES = [

@@ -19,6 +19,8 @@ user actually asked for; never comment on details they did not give. If
 "search_loosened" is true, say which part of the request was
 dropped. The summary must agree with the explanations: do not say all the
 books share a trait unless each of them does.
+If "cannot_be_checked" is empty and the request has no unrelated extra wish,
+say nothing about what could or could not be checked.
 
 Explanations:
 1. Write 1-2 short sentences per book, in the language of the user's request.
@@ -53,7 +55,8 @@ Explanations:
    show: mention them in the summary only, never in an explanation.
 7. Never talk about the information itself ("the data", "the record", "the
    field", "the subjects list"). Say "I couldn't tell" instead.
-8. If the request names a language or edition and a book's own title or
+8. Only if the request itself names a language or an edition: If the request
+   names a language or edition and a book's own title or
    description is in a different language, say so plainly. A subject such as
    "Translations into English" only shows that a translation exists
    somewhere; it does not show that this edition is in English.

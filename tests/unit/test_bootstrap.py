@@ -7,7 +7,7 @@ from ai_book_assistant.search.client import OpenLibraryClient
 
 
 def test_build_assistant_wires_extraction_search_and_explanation(monkeypatch):
-    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     assistant = build_assistant()
 
@@ -17,7 +17,7 @@ def test_build_assistant_wires_extraction_search_and_explanation(monkeypatch):
 
 
 def test_build_assistant_needs_an_api_key(monkeypatch):
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-    with pytest.raises(ValueError, match="GROQ_API_KEY"):
+    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
         build_assistant()
