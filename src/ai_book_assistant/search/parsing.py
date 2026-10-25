@@ -2,6 +2,7 @@ import re
 from collections.abc import Mapping
 
 from ai_book_assistant.models import Book
+from ai_book_assistant.text import collapse_whitespace
 
 
 def _fingerprint(text: str) -> str:
@@ -18,7 +19,7 @@ def dedupe_names(names: list[str]) -> list[str]:
     seen: set[str] = set()
     unique: list[str] = []
     for name in names:
-        cleaned = " ".join(name.split())
+        cleaned = collapse_whitespace(name)
         fingerprint = _fingerprint(cleaned)
         if cleaned and fingerprint and fingerprint not in seen:
             seen.add(fingerprint)

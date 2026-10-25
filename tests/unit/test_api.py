@@ -5,16 +5,9 @@ from fastapi.testclient import TestClient
 from ai_book_assistant.api import create_app
 from ai_book_assistant.assistant import CLARIFICATION_MESSAGE, AssistantResult
 from ai_book_assistant.llm.errors import LLMError
-from ai_book_assistant.models import Book, Explanations, SearchCriteria
+from ai_book_assistant.models import Explanations, SearchCriteria
 from ai_book_assistant.search.fallback import SearchOutcome
-from ai_book_assistant.storage import SearchHistory
-
-BOOK = Book(
-    key="/works/OL1W",
-    title="The Hobbit",
-    authors=["J.R.R. Tolkien"],
-    first_publish_year=1937,
-)
+from ai_book_assistant.service import SearchService
 
 
 class FakeAssistant:
@@ -30,11 +23,17 @@ class FakeAssistant:
         return self.result
 
 
-def found() -> AssistantResult:
+def found(make_book) -> AssistantResult:
+    book = make_book(
+        key="/works/OL1W",
+        title="The Hobbit",
+        authors=["J.R.R. Tolkien"],
+        first_publish_year=1937,
+    )
     return AssistantResult(
         query="ignored",
         criteria=SearchCriteria(subjects=["fantasy"]),
-        outcome=SearchOutcome([BOOK], "full", {"q": "x"}, [("full", 1)]),
+        outcome=SearchOutcome([book], "full", {"q": "x"}, [("full", 1)]),
         explanations=Explanations(
             summary="Overall.", by_book={"/works/OL1W": "It fits."}
         ),
@@ -48,13 +47,8 @@ def needs_clarification() -> AssistantResult:
     return AssistantResult("ignored", SearchCriteria(), outcome)
 
 
-@pytest.fixture
-def history(tmp_path):
-    return SearchHistory(tmp_path / "history.db")
-
-
 def client_for(assistant, history) -> TestClient:
-    return TestClient(create_app(assistant, history))
+    return TestClient(create_app(SearchService(assistant, history), history))
 
 
 def test_health(history):
@@ -64,8 +58,8 @@ def test_health(history):
     assert response.json() == {"status": "ok"}
 
 
-def test_search_returns_results_with_their_explanations(history):
-    client = client_for(FakeAssistant(found()), history)
+def test_search_returns_results_with_their_explanations(history, make_book):
+    client = client_for(FakeAssistant(found(make_book)), history)
 
     response = client.post("/search", json={"query": "fantasy"})
 
@@ -88,18 +82,25 @@ def test_search_returns_results_with_their_explanations(history):
     ]
 
 
-def test_every_search_is_saved(history):
-    client = client_for(FakeAssistant(found()), history)
+def test_every_search_is_saved(history, make_book):
+    client = client_for(FakeAssistant(found(make_book)), history)
 
     client.post("/search", json={"query": "fantasy"})
 
     saved = history.get(1)
     assert saved.query == "fantasy"
-    assert saved.books == [BOOK]
+    assert saved.books == [
+        make_book(
+            key="/works/OL1W",
+            title="The Hobbit",
+            authors=["J.R.R. Tolkien"],
+            first_publish_year=1937,
+        )
+    ]
 
 
-def test_the_query_is_trimmed_before_it_is_used(history):
-    assistant = FakeAssistant(found())
+def test_the_query_is_trimmed_before_it_is_used(history, make_book):
+    assistant = FakeAssistant(found(make_book))
 
     client_for(assistant, history).post("/search", json={"query": "  fantasy  "})
 
@@ -125,7 +126,7 @@ def test_a_vague_query_returns_the_message_and_is_saved(history):
     [{}, {"query": ""}, {"query": "   "}, {"query": "x" * 501}, {"query": 5}],
 )
 def test_invalid_requests_are_rejected_without_calling_the_assistant(history, payload):
-    assistant = FakeAssistant(found())
+    assistant = FakeAssistant()
 
     response = client_for(assistant, history).post("/search", json=payload)
 
@@ -168,8 +169,8 @@ def test_history_starts_empty(history):
     assert client_for(FakeAssistant(), history).get("/history").json() == []
 
 
-def test_history_lists_searches_newest_first_without_snapshots(history):
-    client = client_for(FakeAssistant(found()), history)
+def test_history_lists_searches_newest_first_without_snapshots(history, make_book):
+    client = client_for(FakeAssistant(found(make_book)), history)
     for query in ("one", "two", "three"):
         client.post("/search", json={"query": query})
 
@@ -179,8 +180,8 @@ def test_history_lists_searches_newest_first_without_snapshots(history):
     assert set(entries[0]) == {"id", "created_at", "query", "strategy"}
 
 
-def test_history_supports_paging(history):
-    client = client_for(FakeAssistant(found()), history)
+def test_history_supports_paging(history, make_book):
+    client = client_for(FakeAssistant(found(make_book)), history)
     for query in ("one", "two", "three"):
         client.post("/search", json={"query": query})
 
@@ -196,8 +197,8 @@ def test_history_rejects_bad_paging(history, params):
     assert response.status_code == 422
 
 
-def test_a_saved_search_can_be_opened_again(history):
-    client = client_for(FakeAssistant(found()), history)
+def test_a_saved_search_can_be_opened_again(history, make_book):
+    client = client_for(FakeAssistant(found(make_book)), history)
     created = client.post("/search", json={"query": "fantasy"}).json()
 
     replayed = client.get(f"/history/{created['id']}")
@@ -234,8 +235,8 @@ def test_the_docs_list_every_endpoint(history):
     assert set(paths) == {"/health", "/search", "/history", "/history/{search_id}"}
 
 
-def test_results_leave_out_noisy_catalogue_fields(history):
-    noisy = Book(
+def test_results_leave_out_noisy_catalogue_fields(history, make_book):
+    noisy = make_book(
         key="/works/OL2W",
         title="Noisy",
         subjects=["Fantasy", "Fiction"],

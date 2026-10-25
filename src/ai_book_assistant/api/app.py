@@ -2,8 +2,8 @@ from fastapi import FastAPI
 
 from ai_book_assistant.api.errors import register_error_handlers
 from ai_book_assistant.api.routes import router
-from ai_book_assistant.assistant import BookAssistant
-from ai_book_assistant.storage import SearchHistory
+from ai_book_assistant.service import SearchService
+from ai_book_assistant.storage import HistoryStore
 
 DESCRIPTION = (
     "Describe the kind of book you want in plain language. An LLM turns the "
@@ -13,9 +13,9 @@ DESCRIPTION = (
 )
 
 
-def create_app(assistant: BookAssistant, history: SearchHistory) -> FastAPI:
+def create_app(service: SearchService, history: HistoryStore) -> FastAPI:
     app = FastAPI(title="AI Book Assistant", description=DESCRIPTION)
-    app.state.assistant = assistant
+    app.state.service = service
     app.state.history = history
     app.include_router(router)
     register_error_handlers(app)

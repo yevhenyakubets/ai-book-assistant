@@ -3,7 +3,6 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from ai_book_assistant.llm.errors import LLMError
-from ai_book_assistant.llm.extractor import CriteriaExtractor
 from ai_book_assistant.models import Book, Explanations, SearchCriteria
 from ai_book_assistant.search.fallback import (
     BookSearcher,
@@ -24,6 +23,10 @@ class BookCatalog(BookSearcher, Protocol):
     """Everything the assistant needs from its source of books."""
 
     def attach_descriptions(self, books: list[Book]) -> list[Book]: ...
+
+
+class CriteriaProvider(Protocol):
+    def extract(self, user_query: str) -> SearchCriteria: ...
 
 
 class Explainer(Protocol):
@@ -68,7 +71,7 @@ class AssistantResult:
 class BookAssistant:
     def __init__(
         self,
-        extractor: CriteriaExtractor,
+        extractor: CriteriaProvider,
         catalog: BookCatalog,
         *,
         explainer: Explainer | None = None,

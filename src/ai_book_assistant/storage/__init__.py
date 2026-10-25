@@ -1,3 +1,4 @@
-from ai_book_assistant.storage.history import SearchHistory
+from ai_book_assistant.storage.base import HistoryStore
+from ai_book_assistant.storage.sqlite import SqliteSearchHistory
 
-__all__ = ["SearchHistory"]
+__all__ = ["HistoryStore", "SqliteSearchHistory"]

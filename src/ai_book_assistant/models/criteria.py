@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
+from ai_book_assistant.text import collapse_whitespace
+
 MAX_SUBJECTS = 3
 MAX_KEYWORDS = 3
 MIN_YEAR = 1000
@@ -19,7 +21,7 @@ def _normalize_terms(value: object) -> list[str]:
     for item in value:
         if not isinstance(item, str):
             continue
-        term = " ".join(item.replace("-", " ").split()).lower()
+        term = collapse_whitespace(item.replace("-", " ")).lower()
         if term and term not in terms:
             terms.append(term)
     return terms
@@ -53,7 +55,7 @@ class Preferences(BaseModel):
     def _clean_text(cls, value: object) -> str | None:
         if not isinstance(value, str):
             return None
-        return " ".join(value.split()).lower() or None
+        return collapse_whitespace(value).lower() or None
 
 
 class SearchCriteria(BaseModel):
@@ -81,7 +83,7 @@ class SearchCriteria(BaseModel):
     def _clean_author(cls, value: object) -> str | None:
         if not isinstance(value, str):
             return None
-        return " ".join(value.split()) or None
+        return collapse_whitespace(value) or None
 
     @field_validator("year_min", "year_max", mode="before")
     @classmethod

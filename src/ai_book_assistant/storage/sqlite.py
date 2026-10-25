@@ -33,7 +33,7 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-class SearchHistory:
+class SqliteSearchHistory:
     """Keeps past searches in SQLite, exactly as the user saw them.
 
     A snapshot is stored instead of just book ids, so a past search can be

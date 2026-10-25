@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from ai_book_assistant.llm.base import LLMClient
+from ai_book_assistant.text import collapse_whitespace
 
 logger = logging.getLogger(__name__)
 
@@ -58,4 +59,4 @@ class StructuredGenerator:
 
 
 def _short(exc: Exception) -> str:
-    return " ".join(str(exc).split())[:200]
+    return collapse_whitespace(str(exc))[:200]
