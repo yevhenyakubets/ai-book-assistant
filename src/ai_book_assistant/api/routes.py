@@ -8,9 +8,9 @@ from ai_book_assistant.api.schemas import (
     SearchResponse,
     to_response,
 )
-from ai_book_assistant.assistant import BookAssistant
 from ai_book_assistant.models import HistoryEntry
-from ai_book_assistant.storage import SearchHistory
+from ai_book_assistant.service import SearchService
+from ai_book_assistant.storage import HistoryStore
 
 router = APIRouter()
 
@@ -26,16 +26,16 @@ SERVICE_ERRORS = {
 }
 
 
-def get_assistant(request: Request) -> BookAssistant:
-    return request.app.state.assistant
+def get_service(request: Request) -> SearchService:
+    return request.app.state.service
 
 
-def get_history(request: Request) -> SearchHistory:
+def get_history(request: Request) -> HistoryStore:
     return request.app.state.history
 
 
-AssistantDep = Annotated[BookAssistant, Depends(get_assistant)]
-HistoryDep = Annotated[SearchHistory, Depends(get_history)]
+ServiceDep = Annotated[SearchService, Depends(get_service)]
+HistoryDep = Annotated[HistoryStore, Depends(get_history)]
 
 
 @router.get("/health", summary="Check that the service is running")
@@ -49,21 +49,12 @@ def health() -> dict[str, str]:
     responses=SERVICE_ERRORS,
     summary="Find books for a request and explain why they fit",
 )
-def search(
-    body: SearchRequest, assistant: AssistantDep, history: HistoryDep
-) -> SearchResponse:
+def search(body: SearchRequest, service: ServiceDep) -> SearchResponse:
     """Turn a free-text request into up to five books, each with an explanation.
 
     Every search is saved. Use the returned `id` with `GET /history/{id}`.
     """
-    result = assistant.search(body.query)
-    record = history.add(
-        query=body.query,
-        strategy=result.strategy,
-        criteria=result.criteria,
-        books=result.books,
-        explanations=result.explanations,
-    )
+    record = service.search(body.query)
     return to_response(record)
 
 
