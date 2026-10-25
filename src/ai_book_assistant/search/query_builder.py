@@ -1,6 +1,7 @@
 import re
 
 from ai_book_assistant.models import SearchCriteria
+from ai_book_assistant.text import collapse_whitespace
 
 SEARCH_FIELDS = "key,title,author_name,first_publish_year,subject,cover_i"
 
@@ -9,7 +10,7 @@ _UNSAFE_CHARS = re.compile(r'[\\"():\[\]{}^~*?!/|&]')
 
 
 def _clean(term: str) -> str:
-    return " ".join(_UNSAFE_CHARS.sub(" ", term).split())
+    return collapse_whitespace(_UNSAFE_CHARS.sub(" ", term))
 
 
 def _keyword_clause(keyword: str) -> str:
@@ -34,7 +35,7 @@ def build_search_params(
     """Turn criteria into Open Library search parameters.
 
     Returns None when the criteria contain nothing searchable. The flags
-    let the fallback ladder (Step 4) loosen the query one piece at a time.
+    let the fallback ladder loosen the query one piece at a time.
     """
     clauses: list[str] = []
 

@@ -6,6 +6,7 @@ from ai_book_assistant.explain.prompts import build_explanation_prompt
 from ai_book_assistant.llm.base import LLMClient
 from ai_book_assistant.llm.structured import StructuredGenerator
 from ai_book_assistant.models import Book, Explanations, SearchCriteria
+from ai_book_assistant.text import collapse_whitespace
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class _Response(BaseModel):
 
 def _clean(text: str) -> str:
     """Collapse whitespace and replace non-breaking hyphens with plain ones."""
-    return " ".join(text.replace("\u2011", "-").split())
+    return collapse_whitespace(text.replace("\u2011", "-"))
 
 
 def _validate(data: object, count: int) -> tuple[str | None, dict[int, str]]:
