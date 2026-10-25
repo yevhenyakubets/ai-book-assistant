@@ -1,6 +1,5 @@
 import pytest
 
-from ai_book_assistant.models import Book
 from ai_book_assistant.search.parsing import (
     book_from_search_doc,
     dedupe_books,
@@ -87,16 +86,12 @@ def test_extract_description(value: object, expected: str | None) -> None:
     assert extract_description(value) == expected
 
 
-def _book(key: str, title: str, authors: list[str]) -> Book:
-    return Book(key=key, title=title, authors=authors)
-
-
-def test_dedupe_books_keeps_the_first_of_identical_books() -> None:
+def test_dedupe_books_keeps_the_first_of_identical_books(make_book) -> None:
     books = [
-        _book("/works/OL1W", "Space travel", ["Ben Bova"]),
-        _book("/works/OL2W", "Space Travel!", ["Ben  Bova"]),
-        _book("/works/OL3W", "Mind Changer", ["James White"]),
-        _book("/works/OL4W", "Space travel", ["Ben Bova"]),
+        make_book(key="/works/OL1W", title="Space travel", authors=["Ben Bova"]),
+        make_book(key="/works/OL2W", title="Space Travel!", authors=["Ben  Bova"]),
+        make_book(key="/works/OL3W", title="Mind Changer", authors=["James White"]),
+        make_book(key="/works/OL4W", title="Space travel", authors=["Ben Bova"]),
     ]
 
     assert [book.key for book in dedupe_books(books)] == [
@@ -105,19 +100,27 @@ def test_dedupe_books_keeps_the_first_of_identical_books() -> None:
     ]
 
 
-def test_dedupe_books_keeps_same_title_by_different_authors() -> None:
+def test_dedupe_books_keeps_same_title_by_different_authors(make_book) -> None:
     books = [
-        _book("/works/OL1W", "Artificial intelligence", ["Stuart Russell"]),
-        _book("/works/OL2W", "Artificial intelligence", ["Patrick Winston"]),
+        make_book(
+            key="/works/OL1W",
+            title="Artificial intelligence",
+            authors=["Stuart Russell"],
+        ),
+        make_book(
+            key="/works/OL2W",
+            title="Artificial intelligence",
+            authors=["Patrick Winston"],
+        ),
     ]
 
     assert len(dedupe_books(books)) == 2
 
 
-def test_dedupe_books_treats_missing_authors_as_equal() -> None:
+def test_dedupe_books_treats_missing_authors_as_equal(make_book) -> None:
     books = [
-        _book("/works/OL1W", "Untitled", []),
-        _book("/works/OL2W", "Untitled", []),
+        make_book(key="/works/OL1W", title="Untitled", authors=[]),
+        make_book(key="/works/OL2W", title="Untitled", authors=[]),
     ]
 
     assert [book.key for book in dedupe_books(books)] == ["/works/OL1W"]

@@ -58,18 +58,14 @@ class FakeExplainer:
         return self.result
 
 
-def _book() -> Book:
-    return Book(title="A book", key="/works/OL1W")
-
-
 def _assistant(catalog, explainer=None, criteria=None, **kwargs) -> BookAssistant:
     extractor = FakeExtractor(criteria or SearchCriteria(subjects=["fantasy"]))
     return BookAssistant(extractor, catalog, explainer=explainer, **kwargs)
 
 
-def test_happy_path_returns_books_and_full_strategy() -> None:
+def test_happy_path_returns_books_and_full_strategy(make_book) -> None:
     criteria = SearchCriteria(subjects=["fantasy"])
-    books = [_book()]
+    books = [make_book()]
     assistant = _assistant(FakeCatalog(books), criteria=criteria)
 
     result = assistant.search("fantasy")
@@ -82,8 +78,8 @@ def test_happy_path_returns_books_and_full_strategy() -> None:
     assert not result.needs_clarification
 
 
-def test_descriptions_are_attached_to_the_results() -> None:
-    books = [_book()]
+def test_descriptions_are_attached_to_the_results(make_book) -> None:
+    books = [make_book()]
     catalog = FakeCatalog(books)
 
     result = _assistant(catalog).search("fantasy")
@@ -116,10 +112,10 @@ def test_no_results_means_no_description_or_explanation_calls() -> None:
     assert explainer.calls == []
 
 
-def test_relaxed_result_is_exposed() -> None:
+def test_relaxed_result_is_exposed(make_book) -> None:
     criteria = SearchCriteria(subjects=["fantasy"], keywords=["magic"])
 
-    result = _assistant(RelaxedCatalog([_book()]), criteria=criteria).search("x")
+    result = _assistant(RelaxedCatalog([make_book()]), criteria=criteria).search("x")
 
     assert result.strategy == "without_keywords"
     assert result.relaxed
@@ -133,8 +129,8 @@ def test_extractor_exception_propagates() -> None:
         assistant.search("fantasy")
 
 
-def test_limit_is_forwarded_to_the_catalog() -> None:
-    catalog = FakeCatalog([_book()])
+def test_limit_is_forwarded_to_the_catalog(make_book) -> None:
+    catalog = FakeCatalog([make_book()])
 
     _assistant(catalog, limit=12).search("fantasy")
 
@@ -146,19 +142,19 @@ def test_limit_must_be_positive() -> None:
         BookAssistant(FakeExtractor(SearchCriteria()), FakeCatalog([]), limit=0)
 
 
-def test_explanations_are_returned_with_the_result() -> None:
+def test_explanations_are_returned_with_the_result(make_book) -> None:
     explanations = Explanations(summary="Overall.", by_book={"/works/OL1W": "It fits."})
     explainer = FakeExplainer(explanations)
 
-    result = _assistant(FakeCatalog([_book()]), explainer).search("fantasy")
+    result = _assistant(FakeCatalog([make_book()]), explainer).search("fantasy")
 
     assert result.explanations == explanations
 
 
-def test_explainer_sees_the_books_with_their_descriptions() -> None:
+def test_explainer_sees_the_books_with_their_descriptions(make_book) -> None:
     explainer = FakeExplainer()
 
-    _assistant(FakeCatalog([_book()]), explainer).search("fantasy")
+    _assistant(FakeCatalog([make_book()]), explainer).search("fantasy")
 
     query, _, books, relaxed = explainer.calls[0]
     assert query == "fantasy"
@@ -166,33 +162,33 @@ def test_explainer_sees_the_books_with_their_descriptions() -> None:
     assert relaxed is False
 
 
-def test_relaxed_flag_is_forwarded_to_the_explainer() -> None:
+def test_relaxed_flag_is_forwarded_to_the_explainer(make_book) -> None:
     explainer = FakeExplainer()
     criteria = SearchCriteria(subjects=["fantasy"], keywords=["magic"])
 
-    _assistant(RelaxedCatalog([_book()]), explainer, criteria).search("x")
+    _assistant(RelaxedCatalog([make_book()]), explainer, criteria).search("x")
 
     assert explainer.calls[0][3] is True
 
 
-def test_without_an_explainer_there_are_no_explanations() -> None:
-    result = _assistant(FakeCatalog([_book()])).search("fantasy")
+def test_without_an_explainer_there_are_no_explanations(make_book) -> None:
+    result = _assistant(FakeCatalog([make_book()])).search("fantasy")
 
     assert result.explanations == Explanations()
     assert len(result.books) == 1
 
 
-def test_llm_failure_while_explaining_keeps_the_books() -> None:
+def test_llm_failure_while_explaining_keeps_the_books(make_book) -> None:
     explainer = FakeExplainer(error=LLMError("overloaded", status_code=503))
 
-    result = _assistant(FakeCatalog([_book()]), explainer).search("fantasy")
+    result = _assistant(FakeCatalog([make_book()]), explainer).search("fantasy")
 
     assert len(result.books) == 1
     assert result.explanations == Explanations()
 
 
-def test_unexpected_explainer_errors_propagate() -> None:
+def test_unexpected_explainer_errors_propagate(make_book) -> None:
     explainer = FakeExplainer(error=RuntimeError("bug"))
 
     with pytest.raises(RuntimeError, match="bug"):
-        _assistant(FakeCatalog([_book()]), explainer).search("fantasy")
+        _assistant(FakeCatalog([make_book()]), explainer).search("fantasy")
