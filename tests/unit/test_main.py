@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -7,6 +9,7 @@ from ai_book_assistant.api.main import create_default_app, run
 @pytest.fixture(autouse=True)
 def ignore_dotenv_file(monkeypatch):
     monkeypatch.setattr("ai_book_assistant.api.main.load_dotenv", lambda: None)
+    monkeypatch.delenv("APP_ACCESS_TOKEN", raising=False)
 
 
 def test_default_app_uses_the_configured_database(monkeypatch, tmp_path):
@@ -65,3 +68,25 @@ def test_run_uses_configured_host_and_port(monkeypatch):
             {"factory": True, "host": "0.0.0.0", "port": 9001},
         )
     ]
+
+
+def test_default_app_enforces_the_configured_token(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "history.db"))
+    monkeypatch.setenv("APP_ACCESS_TOKEN", "s3cret")
+    client = TestClient(create_default_app())
+
+    assert client.get("/history").status_code == 401
+    ok = client.get("/history", headers={"Authorization": "Bearer s3cret"})
+    assert ok.status_code == 200
+    assert client.get("/health").status_code == 200
+
+
+def test_default_app_warns_when_no_token_is_configured(monkeypatch, tmp_path, caplog):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "history.db"))
+    caplog.set_level(logging.WARNING, logger="ai_book_assistant.api.main")
+
+    create_default_app()
+
+    assert "APP_ACCESS_TOKEN is not set" in caplog.text

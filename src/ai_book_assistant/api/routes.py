@@ -8,11 +8,13 @@ from ai_book_assistant.api.schemas import (
     SearchResponse,
     to_response,
 )
+from ai_book_assistant.api.security import require_access_token
 from ai_book_assistant.models import HistoryEntry
 from ai_book_assistant.service import SearchService
 from ai_book_assistant.storage import HistoryStore
 
 router = APIRouter()
+protected = APIRouter(dependencies=[Depends(require_access_token)])
 
 SERVICE_ERRORS = {
     502: {
@@ -43,7 +45,7 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.post(
+@protected.post(
     "/search",
     response_model=SearchResponse,
     responses=SERVICE_ERRORS,
@@ -58,7 +60,7 @@ def search(body: SearchRequest, service: ServiceDep) -> SearchResponse:
     return to_response(record)
 
 
-@router.get(
+@protected.get(
     "/history",
     response_model=list[HistoryEntry],
     summary="List past searches, newest first",
@@ -71,7 +73,7 @@ def list_history(
     return history.list_recent(limit=limit, offset=offset)
 
 
-@router.get(
+@protected.get(
     "/history/{search_id}",
     response_model=SearchResponse,
     responses={404: {"model": ErrorResponse, "description": "No such search"}},
