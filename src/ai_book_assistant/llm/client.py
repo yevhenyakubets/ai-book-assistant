@@ -8,7 +8,7 @@ from ai_book_assistant.llm.errors import LLMError
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gpt-5.4-nano"
+DEFAULT_MODEL = "gpt-5.4-mini"
 # The most one call may generate. This bounds the cost of a runaway answer;
 # reasoning models count their hidden reasoning tokens against it.
 MAX_OUTPUT_TOKENS = 4000
