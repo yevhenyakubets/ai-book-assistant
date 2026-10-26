@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    container_name: ai-book-assistant
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in .env}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      APP_ACCESS_TOKEN: ${APP_ACCESS_TOKEN:-}
+    volumes:
+      - history:/app/data
+    restart: unless-stopped
+
+volumes:
+  history:
