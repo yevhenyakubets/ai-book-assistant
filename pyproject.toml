@@ -1,0 +1,42 @@
+[project]
+name = "ai-book-assistant"
+version = "0.1.0"
+description = "An AI-powered book discovery and assistance application."
+readme = "README.md"
+authors = [
+    { name = "Yevhen Yakubets", email = "yevhen.yakubets@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.143.2",
+    "httpx>=0.28.1",
+    "openai>=3.37.0",
+    "pydantic>=2.14.1",
+    "python-dotenv>=1.2.4",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+ai-book-assistant = "ai_book_assistant.api.main:run"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "black>=26.10.1",
+    "flake8>=7.4.1",
+    "isort>=9.0.2",
+    "pre-commit>=4.7.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.isort]
+profile = "black"
+line_length = 88
