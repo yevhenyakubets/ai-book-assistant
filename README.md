@@ -194,11 +194,21 @@ uv run python -m scripts.try_queries --verbose "Cozy mystery novels set in a sma
 
 ## Run tests and checks
 
-Unit tests use mocked LLM and Open Library clients; they do not make live
-service calls:
+The default test command discovers and runs the unit tests. They use mocked
+LLM and Open Library clients and do not make live service calls:
 
 ```bash
 uv run pytest
+```
+
+The full-pipeline integration test uses a fake LLM, a mocked Open Library HTTP
+transport, and a temporary SQLite database, so it also requires no API key or
+network access. CI runs it separately from the unit tests on pull requests
+targeting `main` or `develop` and on pushes to those branches. Run it manually
+with:
+
+```bash
+uv run pytest tests/integration
 ```
 
 The project also configures Flake8 and Black:
