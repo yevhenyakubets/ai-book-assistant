@@ -27,7 +27,8 @@ Rules:
    Never use filler such as "book", "novel", "famous", "good" or "best".
 4. Never put mood, audience or length in subjects or keywords. They go in
    preferences only: tone ("dark", "cozy"), audience ("beginners", "children"),
-   length ("short", "long").
+   length ("short", "long"). Treat "short", "brief", "not too long", and a
+   request for no more than 300 pages as length "short".
 5. Years: "after 2010" means year_min 2011; "before 2000" means year_max 1999;
    "in 1998" means both are 1998; "the 1980s" means 1980 to 1989; "recent" or
    "newer" means year_min {RECENT_YEAR}.
@@ -59,6 +60,13 @@ EXAMPLES = [
             "subjects": ["romance"],
             "keywords": ["bakery"],
             "preferences": {"tone": ["gentle"], "length": "short"},
+        },
+    ),
+    (
+        "A fantasy novel no more than 300 pages",
+        {
+            "subjects": ["fantasy"],
+            "preferences": {"length": "short"},
         },
     ),
     (
