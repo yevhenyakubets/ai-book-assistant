@@ -15,6 +15,7 @@ MAX_OUTPUT_TOKENS = 4000
 # OpenAI reports an empty prepaid balance as a 429 with this error code.
 INSUFFICIENT_QUOTA = "insufficient_quota"
 PAYMENT_REQUIRED = 402
+TEMPERATURE = 0.0
 
 
 def _status_of(exc: openai.APIStatusError) -> int:
@@ -33,6 +34,7 @@ class OpenAILLMClient:
         max_retries: int = 3,
         timeout: float = 30.0,
         max_output_tokens: int = MAX_OUTPUT_TOKENS,
+        temperature: float | None = TEMPERATURE,
     ) -> None:
         if client is None:
             api_key = os.getenv("OPENAI_API_KEY")
@@ -43,26 +45,46 @@ class OpenAILLMClient:
         self.client = client
         self.model = model or os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
         self.max_output_tokens = max_output_tokens
+        self.temperature = temperature
 
     def generate(self, prompt: str) -> str:
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-                max_completion_tokens=self.max_output_tokens,
+            response = self._create(prompt)
+        except openai.BadRequestError as exc:
+            if self.temperature is None or getattr(exc, "param", None) != "temperature":
+                raise self._as_llm_error(exc) from exc
+            logger.warning(
+                "%s does not accept a temperature; retrying without one", self.model
             )
+            self.temperature = None
+            return self.generate(prompt)
         except openai.APIStatusError as exc:
-            status = _status_of(exc)
-            logger.error("OpenAI returned HTTP %s: %s", status, exc.message)
-            raise LLMError(
-                f"OpenAI returned HTTP {status}: {exc.message}", status_code=status
-            ) from exc
+            raise self._as_llm_error(exc) from exc
         except openai.APIConnectionError as exc:  # includes timeouts
             logger.error("Could not reach OpenAI: %s", exc.message)
             raise LLMError(f"Could not reach OpenAI: {exc.message}") from exc
         self._log_usage(response)
         return response.choices[0].message.content
+
+    def _create(self, prompt: str):
+        options = {}
+        if self.temperature is not None:
+            options["temperature"] = self.temperature
+        return self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            max_completion_tokens=self.max_output_tokens,
+            **options,
+        )
+
+    @staticmethod
+    def _as_llm_error(exc: openai.APIStatusError) -> LLMError:
+        status = _status_of(exc)
+        logger.error("OpenAI returned HTTP %s: %s", status, exc.message)
+        return LLMError(
+            f"OpenAI returned HTTP {status}: {exc.message}", status_code=status
+        )
 
     def _log_usage(self, response) -> None:
         usage = getattr(response, "usage", None)
