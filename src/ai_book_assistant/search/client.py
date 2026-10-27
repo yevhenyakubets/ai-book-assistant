@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import time
 from collections.abc import Mapping
@@ -39,12 +40,16 @@ class OpenLibraryClient:
         self.max_attempts = max_attempts
         self.backoff = backoff
         self.sleep = sleep
-        self.headers = {
-            "User-Agent": (
-                "AIBookAssistant/0.1 "
-                "(https://github.com/yevhenyakubets/ai-book-assistant)"
-            )
-        }
+        self._description_cache: dict[str, str | None] = {}
+        contact_email = os.getenv("OPEN_LIBRARY_CONTACT_EMAIL", "").strip()
+        user_agent = (
+            "AIBookAssistant/0.1 "
+            "(https://github.com/yevhenyakubets/ai-book-assistant"
+        )
+        if contact_email:
+            user_agent += f"; {contact_email}"
+        user_agent += ")"
+        self.headers = {"User-Agent": user_agent}
 
     def _get_client(self) -> httpx.Client:
         return httpx.Client(timeout=self.timeout, transport=self.transport)
@@ -121,15 +126,19 @@ class OpenLibraryClient:
     ) -> str | None:
         if not self._is_valid_work_key(work_key):
             raise ValueError(f"Invalid Open Library work key: {work_key!r}")
+        if work_key in self._description_cache:
+            return self._description_cache[work_key]
 
         url = f"{self.BASE_URL}{work_key}.json"
         response = self._get(client, url)
         if response.status_code == 404:
+            self._description_cache[work_key] = None
             return None
         response.raise_for_status()
         data = self._json_object(response, "work")
-
-        return extract_description(data.get("description"))
+        description = extract_description(data.get("description"))
+        self._description_cache[work_key] = description
+        return description
 
     def attach_descriptions(self, books: list[Book]) -> list[Book]:
         with self._get_client() as client:
