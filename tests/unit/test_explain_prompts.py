@@ -45,6 +45,28 @@ def test_missing_description_is_null(make_book):
     assert _payload(_prompt([make_book()]))["books"][0]["description"] is None
 
 
+def test_richer_open_library_metadata_is_in_the_explanation_prompt(make_book):
+    book = make_book(
+        number_of_pages_median=240,
+        ratings_average=4.25,
+        ratings_count=120,
+        want_to_read_count=350,
+        languages=["eng", "fre"],
+        covers=[123],
+        first_sentence="It began at dawn.",
+    )
+
+    data = _payload(_prompt([book]))["books"][0]
+
+    assert data["number_of_pages_median"] == 240
+    assert data["ratings_average"] == 4.25
+    assert data["ratings_count"] == 120
+    assert data["want_to_read_count"] == 350
+    assert data["languages"] == ["eng", "fre"]
+    assert data["cover_url"] == "https://covers.openlibrary.org/b/id/123-M.jpg"
+    assert data["first_sentence"] == "It began at dawn."
+
+
 def test_subjects_are_capped(make_book):
     book = make_book(subjects=[f"s{i}" for i in range(20)])
 

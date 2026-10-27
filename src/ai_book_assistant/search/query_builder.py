@@ -3,7 +3,11 @@ import re
 from ai_book_assistant.models import SearchCriteria
 from ai_book_assistant.text import collapse_whitespace
 
-SEARCH_FIELDS = "key,title,author_name,first_publish_year,subject,cover_i"
+SEARCH_FIELDS = (
+    "key,title,author_name,first_publish_year,subject,cover_i,"
+    "number_of_pages_median,ratings_average,ratings_count,want_to_read_count,"
+    "language,first_sentence"
+)
 
 # Characters with special meaning in Open Library's (Solr) query syntax.
 _UNSAFE_CHARS = re.compile(r'[\\"():\[\]{}^~*?!/|&]')

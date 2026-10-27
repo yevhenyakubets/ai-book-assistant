@@ -1,6 +1,19 @@
 from ai_book_assistant.search.query_builder import SEARCH_FIELDS, build_search_params
 
 
+def test_search_requests_the_richer_open_library_fields():
+    fields = set(SEARCH_FIELDS.split(","))
+
+    assert {
+        "number_of_pages_median",
+        "ratings_average",
+        "ratings_count",
+        "want_to_read_count",
+        "language",
+        "first_sentence",
+    } <= fields
+
+
 def test_subject_and_year_range(make_criteria):
     params = build_search_params(make_criteria(subjects=["fantasy"], year_max=1999))
     assert params == {

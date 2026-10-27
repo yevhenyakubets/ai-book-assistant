@@ -113,6 +113,22 @@ def test_history_survives_reopening_the_database(tmp_path, hobbit, fake_clock):
     assert SqliteSearchHistory(path).get(saved.id) == saved
 
 
+def test_richer_book_metadata_survives_history_round_trip(history, make_book):
+    book = make_book(
+        number_of_pages_median=240,
+        ratings_average=4.25,
+        ratings_count=120,
+        want_to_read_count=350,
+        languages=["eng", "fre"],
+        covers=[123],
+        first_sentence="It began at dawn.",
+    )
+
+    saved = _save(history, book)
+
+    assert history.get(saved.id).books[0] == book
+
+
 def test_missing_parent_directories_are_created(tmp_path, hobbit):
     history = SqliteSearchHistory(tmp_path / "data" / "nested" / "history.db")
 

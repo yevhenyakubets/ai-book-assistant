@@ -113,6 +113,15 @@ def run_query(query, assistant) -> dict:
             why = result.explanations.by_book.get(book.key, "(no explanation)")
             print(f"    - {format_book(book)}")
             print(f"        Subjects: {', '.join(book.subjects[:8]) or '(none)'}")
+            print(
+                "        Metadata: "
+                f"pages (median)={book.number_of_pages_median}, "
+                f"rating={book.ratings_average} ({book.ratings_count} ratings), "
+                f"want-to-read={book.want_to_read_count}, "
+                f"languages={', '.join(book.languages) or '(none)'}"
+            )
+            print(f"        Cover: {book.cover_url or '(none)'}")
+            print(f"        First sentence: {book.first_sentence or '(none)'}")
             print(f"        {format_description(book)}")
             print(f"        Why: {why}")
     return row
