@@ -8,6 +8,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in .env}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
       APP_ACCESS_TOKEN: ${APP_ACCESS_TOKEN:-}
+      OPEN_LIBRARY_CONTACT_EMAIL: ${OPEN_LIBRARY_CONTACT_EMAIL:-}
     volumes:
       - history:/app/data
     restart: unless-stopped
