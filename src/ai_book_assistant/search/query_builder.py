@@ -1,6 +1,7 @@
 import re
 
 from ai_book_assistant.models import SearchCriteria
+from ai_book_assistant.models.criteria import SHORT_MAX_PAGES
 from ai_book_assistant.text import collapse_whitespace
 
 SEARCH_FIELDS = (
@@ -29,11 +30,18 @@ def _year_clause(year_min: int | None, year_max: int | None) -> str | None:
     return f"first_publish_year:[{low} TO {high}]"
 
 
+def _length_clause(length: str | None) -> str | None:
+    if length == "short":
+        return f"number_of_pages_median:[1 TO {SHORT_MAX_PAGES}]"
+    return None
+
+
 def build_search_params(
     criteria: SearchCriteria,
     *,
     include_keywords: bool = True,
     include_years: bool = True,
+    include_length: bool = True,
     max_subjects: int | None = None,
 ) -> dict[str, str] | None:
     """Turn criteria into Open Library search parameters.
@@ -61,6 +69,11 @@ def build_search_params(
         year_clause = _year_clause(criteria.year_min, criteria.year_max)
         if year_clause:
             clauses.append(year_clause)
+
+    if include_length:
+        length_clause = _length_clause(criteria.preferences.length)
+        if length_clause:
+            clauses.append(length_clause)
 
     params: dict[str, str] = {}
     if clauses:

@@ -22,6 +22,31 @@ def test_subject_and_year_range(make_criteria):
     }
 
 
+def test_short_preference_adds_a_median_page_count_filter(make_criteria):
+    params = build_search_params(
+        make_criteria(subjects=["fantasy"], preferences={"length": "short"})
+    )
+
+    assert params["q"] == ('subject:"fantasy" AND number_of_pages_median:[1 TO 300]')
+
+
+def test_short_filter_can_be_dropped_for_fallback(make_criteria):
+    params = build_search_params(
+        make_criteria(subjects=["fantasy"], preferences={"length": "short"}),
+        include_length=False,
+    )
+
+    assert params["q"] == 'subject:"fantasy"'
+
+
+def test_long_preference_does_not_add_an_unsupported_page_filter(make_criteria):
+    params = build_search_params(
+        make_criteria(subjects=["fantasy"], preferences={"length": "long"})
+    )
+
+    assert params["q"] == 'subject:"fantasy"'
+
+
 def test_open_ended_lower_bound(make_criteria):
     params = build_search_params(
         make_criteria(subjects=["science fiction"], year_min=2015)

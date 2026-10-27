@@ -20,19 +20,28 @@ class Rung:
     name: str
     include_keywords: bool = True
     include_years: bool = True
+    include_length: bool = True
     max_subjects: int | None = None
 
 
-# Strictest first. Keywords go first because they are the least reliable
-# part of the extraction; years are explicit user constraints, so they go last.
+# Strictest first. Page count is relaxed first because Open Library has
+# incomplete page metadata; keywords are less reliable than subjects, and
+# explicit year constraints are relaxed last.
 RUNGS = (
     Rung(FULL),
-    Rung("without_keywords", include_keywords=False),
-    Rung("primary_subject", include_keywords=False, max_subjects=1),
+    Rung("without_length_filter", include_length=False),
+    Rung("without_keywords", include_keywords=False, include_length=False),
+    Rung(
+        "primary_subject",
+        include_keywords=False,
+        include_length=False,
+        max_subjects=1,
+    ),
     Rung(
         "ignoring_years",
         include_keywords=False,
         include_years=False,
+        include_length=False,
         max_subjects=1,
     ),
 )
@@ -45,6 +54,7 @@ class SearchOutcome:
     params: dict | None
     attempts: list[tuple[str, int]] = field(default_factory=list)
     needs_clarification: bool = False
+    length_filter_applied: bool = False
 
     @property
     def relaxed(self) -> bool:
@@ -84,6 +94,7 @@ def candidate_queries(
                     criteria,
                     include_keywords=rung.include_keywords,
                     include_years=rung.include_years,
+                    include_length=rung.include_length,
                     max_subjects=rung.max_subjects,
                 ),
             )
@@ -107,5 +118,13 @@ def search_with_fallback(
         books = client.search_books(params, limit)
         attempts.append((name, len(books)))
         if len(books) >= min_results:
-            return SearchOutcome(books, name, params, attempts)
+            return SearchOutcome(
+                books,
+                name,
+                params,
+                attempts,
+                length_filter_applied=(
+                    criteria.preferences.length == "short" and name == FULL
+                ),
+            )
     return SearchOutcome([], NO_RESULTS, None, attempts)
