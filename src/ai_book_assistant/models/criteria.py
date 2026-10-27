@@ -6,7 +6,7 @@ MAX_SUBJECTS = 3
 MAX_KEYWORDS = 3
 MIN_YEAR = 1000
 MAX_YEAR = 2100
-SHORT_MAX_PAGES = 200
+SHORT_MAX_PAGES = 300
 
 
 def _normalize_terms(value: object) -> list[str]:
