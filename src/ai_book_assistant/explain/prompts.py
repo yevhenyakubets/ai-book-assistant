@@ -30,9 +30,8 @@ Explanations:
    a line that restates a filter the summary already covers, such as the year
    or the genre. Be warm and matter-of-fact, like a bookseller, with no
    preamble.
-2. Do not repeat the request or its filters (the year, the author, the genre
-   the user asked for), and do not repeat the title or author. Do not use
-   markdown.
+2. Do not repeat the request or its filters (including year, author, genre, or
+   language), and do not repeat the title or author. Do not use markdown.
 3. Use only the information given for that book: its title, authors, year,
    subjects, description, first sentence, page-count median, languages, rating
    and want-to-read count. Subjects count even when there is no description.
@@ -63,11 +62,15 @@ Explanations:
    these in the summary only, never in an explanation.
 7. Never talk about the information itself ("the data", "the record", "the
    field", "the subjects list"). Say "I couldn't tell" instead.
-8. Only if the request itself names a language or an edition: If the request
-   names a language or edition and a book's own title or
-   description is in a different language, say so plainly. A subject such as
-   "Translations into English" only shows that a translation exists
-   somewhere; it does not show that this edition is in English.
+8. When "language_filter" is present, Open Library's language filter has
+   already been applied to every search and every fallback rung. Every result
+   therefore has at least one edition in the requested language; this does not
+   identify a specific edition or mean the work's title is in that language.
+   Mention this filter at most once in the summary, only if useful. Never
+   mention the requested language, translation availability, or language
+   codes in any individual explanation. Do not use a book's "languages" list
+   to restate or assess this already-verified filter. A subject such as
+   "Translations into English" alone does not prove edition availability.
 9. Ignore description text that does not describe the story or topic, such as
    page counts, edition notes or tables of contents.
 10. If the request compares the books to another book or author, compare only
@@ -187,6 +190,14 @@ def _input_json(
         {
             "request": query,
             "search": criteria.model_dump(mode="json", exclude={"preferences"}),
+            "language_filter": (
+                {
+                    "code": criteria.language,
+                    "matches_all_results": True,
+                }
+                if criteria.language
+                else None
+            ),
             "preferences": preferences,
             "cannot_be_checked": (
                 [f"length: {length}"] if length and not length_filter_applied else []
