@@ -18,6 +18,30 @@ def test_book_from_search_doc(sample_search_doc: dict[str, object]) -> None:
     assert book.covers == [14612610]
 
 
+def test_book_from_search_doc_includes_richer_open_library_fields() -> None:
+    book = book_from_search_doc(
+        {
+            "key": "/works/OL1W",
+            "title": "A story",
+            "number_of_pages_median": 240,
+            "ratings_average": 4.25,
+            "ratings_count": 120,
+            "want_to_read_count": 350,
+            "language": ["eng", "fre"],
+            "first_sentence": ["  It began at dawn.  ", "Another version."],
+            "cover_i": 123,
+        }
+    )
+
+    assert book.number_of_pages_median == 240
+    assert book.ratings_average == 4.25
+    assert book.ratings_count == 120
+    assert book.want_to_read_count == 350
+    assert book.languages == ["eng", "fre"]
+    assert book.first_sentence == "It began at dawn."
+    assert book.cover_url == "https://covers.openlibrary.org/b/id/123-M.jpg"
+
+
 def test_book_from_search_doc_messy_types() -> None:
     doc = {
         "title": "Messy Book",
@@ -25,6 +49,12 @@ def test_book_from_search_doc_messy_types() -> None:
         "first_publish_year": "ancient",
         "subject": "Fiction (Invalid Type)",
         "cover_i": "not-an-int",
+        "number_of_pages_median": True,
+        "ratings_average": float("nan"),
+        "ratings_count": -1,
+        "want_to_read_count": "popular",
+        "language": "eng",
+        "first_sentence": {"unexpected": "shape"},
         "key": "/works/OL999W",
     }
     book = book_from_search_doc(doc)
@@ -34,6 +64,12 @@ def test_book_from_search_doc_messy_types() -> None:
     assert book.first_publish_year is None
     assert book.subjects == []
     assert book.covers == []
+    assert book.number_of_pages_median is None
+    assert book.ratings_average is None
+    assert book.ratings_count is None
+    assert book.want_to_read_count is None
+    assert book.languages == []
+    assert book.first_sentence is None
     assert book.key == "/works/OL999W"
 
 

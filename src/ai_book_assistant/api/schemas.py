@@ -33,6 +33,13 @@ class BookResult(BaseModel):
     authors: list[str]
     first_publish_year: int | None = None
     description: str | None = None
+    number_of_pages_median: int | None = None
+    ratings_average: float | None = None
+    ratings_count: int | None = None
+    want_to_read_count: int | None = None
+    languages: list[str]
+    cover_url: str | None = None
+    first_sentence: str | None = None
     explanation: str | None = None
     url: str
 
@@ -60,6 +67,13 @@ def _book_result(book: Book, explanations: dict[str, str]) -> BookResult:
         authors=book.authors,
         first_publish_year=book.first_publish_year,
         description=book.description,
+        number_of_pages_median=book.number_of_pages_median,
+        ratings_average=book.ratings_average,
+        ratings_count=book.ratings_count,
+        want_to_read_count=book.want_to_read_count,
+        languages=book.languages,
+        cover_url=book.cover_url,
+        first_sentence=book.first_sentence,
         explanation=explanations.get(book.key),
         url=f"{OPEN_LIBRARY_URL}{book.key}",
     )

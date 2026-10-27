@@ -33,11 +33,14 @@ Explanations:
    the user asked for), and do not repeat the title or author. Do not use
    markdown.
 3. Use only the information given for that book: its title, authors, year,
-   subjects and description. Subjects count even when there is no description.
-   Do not add facts from memory about the book, its series or its author (plot,
-   characters, series order, awards, reputation). You may infer from the title
-   if you say so ("the title suggests"). When there is very little to go on,
-   say briefly what the subjects show and stop.
+   subjects, description, first sentence, page-count median, languages, rating
+   and want-to-read count. Subjects count even when there is no description.
+   Treat ratings and want-to-read counts as imperfect popularity signals, not
+   proof of quality. If ratings_count is zero, treat the average rating as
+   unavailable. Do not add facts from memory about the book, its series or its
+   author (plot, characters, series order, awards, reputation). You may infer
+   from the title if you say so ("the title suggests"). When there is very
+   little to go on, say briefly what the subjects show and stop.
    Do not call a book a debut, a sequel or part of a series unless the
    information says so, and do not say where a person played or worked.
 4. Be honest, but proportionate. Mention a limitation only when it changes
@@ -155,6 +158,13 @@ def _book_view(index: int, book: Book) -> dict:
         "year": book.first_publish_year,
         "subjects": book.subjects[:MAX_SUBJECTS],
         "description": _shorten(book.description),
+        "first_sentence": _shorten(book.first_sentence),
+        "number_of_pages_median": book.number_of_pages_median,
+        "ratings_average": book.ratings_average,
+        "ratings_count": book.ratings_count,
+        "want_to_read_count": book.want_to_read_count,
+        "languages": book.languages,
+        "cover_url": book.cover_url,
     }
 
 

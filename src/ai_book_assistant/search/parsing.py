@@ -1,3 +1,4 @@
+import math
 import re
 from collections.abc import Mapping
 
@@ -50,6 +51,44 @@ def extract_description(value: object) -> str | None:
     return value.strip() or None if isinstance(value, str) else None
 
 
+def _nonnegative_int(value: object) -> int | None:
+    return value if type(value) is int and value >= 0 else None
+
+
+def _rating_average(value: object) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        rating = float(value)
+        if math.isfinite(rating) and 0 <= rating <= 5:
+            return rating
+    return None
+
+
+def _string_values(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return list(
+        dict.fromkeys(
+            cleaned
+            for item in value
+            if isinstance(item, str) and (cleaned := collapse_whitespace(item))
+        )
+    )
+
+
+def _first_sentence(value: object) -> str | None:
+    sentences = [value] if isinstance(value, str) else value
+    if not isinstance(sentences, list):
+        return None
+    return next(
+        (
+            cleaned
+            for sentence in sentences
+            if isinstance(sentence, str) and (cleaned := collapse_whitespace(sentence))
+        ),
+        None,
+    )
+
+
 def book_from_search_doc(doc: Mapping[str, object]) -> Book:
     title = doc.get("title")
     if not isinstance(title, str) or not title.strip():
@@ -76,6 +115,8 @@ def book_from_search_doc(doc: Mapping[str, object]) -> Book:
     if type(year) is not int:
         year = None
 
+    first_sentence = _first_sentence(doc.get("first_sentence"))
+
     key = doc.get("key")
     if not isinstance(key, str) or not key.strip():
         raise ValueError("Open Library search document must contain a work key")
@@ -87,4 +128,10 @@ def book_from_search_doc(doc: Mapping[str, object]) -> Book:
         key=key,
         subjects=subjects,
         covers=covers,
+        number_of_pages_median=_nonnegative_int(doc.get("number_of_pages_median")),
+        ratings_average=_rating_average(doc.get("ratings_average")),
+        ratings_count=_nonnegative_int(doc.get("ratings_count")),
+        want_to_read_count=_nonnegative_int(doc.get("want_to_read_count")),
+        languages=_string_values(doc.get("language")),
+        first_sentence=first_sentence,
     )

@@ -58,6 +58,13 @@ def test_search_returns_results_with_their_explanations(
             "authors": ["J.R.R. Tolkien"],
             "first_publish_year": 1937,
             "description": None,
+            "number_of_pages_median": None,
+            "ratings_average": None,
+            "ratings_count": None,
+            "want_to_read_count": None,
+            "languages": [],
+            "cover_url": None,
+            "first_sentence": None,
             "explanation": "It fits.",
             "url": "https://openlibrary.org/works/OL1W",
         }
@@ -224,6 +231,12 @@ def test_results_leave_out_noisy_catalogue_fields(history, make_book, make_assis
         title="Noisy",
         subjects=["Fantasy", "Fiction"],
         covers=[123],
+        number_of_pages_median=320,
+        ratings_average=4.2,
+        ratings_count=80,
+        want_to_read_count=150,
+        languages=["eng", "fre"],
+        first_sentence="A long-ago story.",
     )
     result = AssistantResult(
         "ignored",
@@ -239,3 +252,10 @@ def test_results_leave_out_noisy_catalogue_fields(history, make_book, make_assis
     assert "subjects" not in book
     assert "covers" not in book
     assert book["explanation"] is None
+    assert book["number_of_pages_median"] == 320
+    assert book["ratings_average"] == 4.2
+    assert book["ratings_count"] == 80
+    assert book["want_to_read_count"] == 150
+    assert book["languages"] == ["eng", "fre"]
+    assert book["cover_url"] == "https://covers.openlibrary.org/b/id/123-M.jpg"
+    assert book["first_sentence"] == "A long-ago story."
