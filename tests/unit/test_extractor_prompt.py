@@ -27,3 +27,10 @@ def test_examples_are_valid_criteria():
 
 def test_prompt_maps_explicit_300_page_limit_to_short_length():
     assert "no more than 300 pages" in build("A fantasy novel no more than 300 pages")
+
+
+def test_prompt_extracts_edition_language_as_open_library_code():
+    prompt = build("Fantasy novels by Andrzej Sapkowski available in English")
+
+    assert '"language": ISO 639-2 code' in prompt
+    assert '"language":"eng"' in prompt
