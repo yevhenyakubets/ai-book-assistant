@@ -1,6 +1,7 @@
 import json
 
 from ai_book_assistant.models import Book, SearchCriteria
+from ai_book_assistant.models.criteria import SHORT_MAX_PAGES
 
 MAX_DESCRIPTION_CHARS = 500
 MAX_SUBJECTS = 8
@@ -54,8 +55,12 @@ Explanations:
    because its description does not mention it.
 6. "search" is what was actually searched. "preferences" (tone, audience) were
    NOT searched, so judge them from the information given and say when you
-   cannot. "cannot_be_checked" lists wishes that no book information can ever
-   show: mention them in the summary only, never in an explanation.
+   cannot. A short-length filter, when applied, means Open Library's median
+   page count is between 1 and 300; works without that metadata
+   are excluded. If it was dropped during fallback, say the requested length
+   could not be checked. "cannot_be_checked" lists wishes that no book
+   information can ever show, plus any requested length not filtered; mention
+   these in the summary only, never in an explanation.
 7. Never talk about the information itself ("the data", "the record", "the
    field", "the subjects list"). Say "I couldn't tell" instead.
 8. Only if the request itself names a language or an edition: If the request
@@ -169,23 +174,43 @@ def _book_view(index: int, book: Book) -> dict:
 
 
 def _input_json(
-    query: str, criteria: SearchCriteria, books: list[Book], relaxed: bool
+    query: str,
+    criteria: SearchCriteria,
+    books: list[Book],
+    relaxed: bool,
+    length_filter_applied: bool,
 ) -> str:
     preferences = criteria.preferences.model_dump(mode="json")
     length = preferences.pop("length")
+    length_filter_applied = length_filter_applied and length == "short"
     return _dump(
         {
             "request": query,
             "search": criteria.model_dump(mode="json", exclude={"preferences"}),
             "preferences": preferences,
-            "cannot_be_checked": [f"length: {length}"] if length else [],
+            "cannot_be_checked": (
+                [f"length: {length}"] if length and not length_filter_applied else []
+            ),
+            "length_filter": (
+                {
+                    "requested": length,
+                    "applied": length_filter_applied,
+                    "max_median_pages": (
+                        SHORT_MAX_PAGES if length_filter_applied else None
+                    ),
+                }
+                if length
+                else None
+            ),
             "search_loosened": relaxed,
             "books": [_book_view(i, b) for i, b in enumerate(books, start=1)],
         }
     )
 
 
-_EXAMPLE_INPUT = _input_json(_EXAMPLE_QUERY, _EXAMPLE_CRITERIA, _EXAMPLE_BOOKS, False)
+_EXAMPLE_INPUT = _input_json(
+    _EXAMPLE_QUERY, _EXAMPLE_CRITERIA, _EXAMPLE_BOOKS, False, False
+)
 _EXAMPLE_OUTPUT_JSON = _dump(_EXAMPLE_OUTPUT)
 
 
@@ -195,12 +220,14 @@ def build_explanation_prompt(
     books: list[Book],
     *,
     relaxed: bool = False,
+    length_filter_applied: bool = False,
 ) -> str:
     return (
         f"{INSTRUCTIONS}\n"
         f"Example input:\n{_EXAMPLE_INPUT}\n\n"
         f"Example output:\n{_EXAMPLE_OUTPUT_JSON}\n\n"
         "Now explain the books in this input. Respond with JSON only.\n"
-        f"Input:\n{_input_json(query, criteria, books, relaxed)}\n"
+        f"Input:\n"
+        f"{_input_json(query, criteria, books, relaxed, length_filter_applied)}\n"
         "Output:"
     )

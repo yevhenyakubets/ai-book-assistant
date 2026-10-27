@@ -52,6 +52,42 @@ def test_years_are_dropped_last(make_criteria):
     assert names(criteria, raw="") == ["full", "ignoring_years"]
 
 
+def test_page_filter_is_dropped_before_other_search_constraints(make_criteria):
+    criteria = make_criteria(
+        subjects=["fantasy"],
+        keywords=["dragons"],
+        preferences={"length": "short"},
+    )
+
+    assert names(criteria, raw="") == [
+        "full",
+        "without_length_filter",
+        "without_keywords",
+    ]
+
+
+def test_short_filter_falls_back_when_page_metadata_is_missing(make_criteria):
+    criteria = make_criteria(subjects=["fantasy"], preferences={"length": "short"})
+    client = FakeClient([0, 2])
+
+    outcome = search_with_fallback(criteria, "fantasy", client)
+
+    assert outcome.rung == "without_length_filter"
+    assert outcome.relaxed
+    assert outcome.length_filter_applied is False
+    assert "number_of_pages_median" in client.calls[0]["q"]
+    assert "number_of_pages_median" not in client.calls[1]["q"]
+
+
+def test_full_short_query_records_that_the_filter_was_applied(make_criteria):
+    criteria = make_criteria(subjects=["fantasy"], preferences={"length": "short"})
+
+    outcome = search_with_fallback(criteria, "fantasy", FakeClient([2]))
+
+    assert outcome.rung == "full"
+    assert outcome.length_filter_applied is True
+
+
 def test_keywords_only_never_runs_a_years_only_query(make_criteria):
     criteria = make_criteria(keywords=["x"], year_min=2000)
     assert names(criteria) == ["full", "raw_query"]

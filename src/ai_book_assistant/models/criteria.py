@@ -6,6 +6,7 @@ MAX_SUBJECTS = 3
 MAX_KEYWORDS = 3
 MIN_YEAR = 1000
 MAX_YEAR = 2100
+SHORT_MAX_PAGES = 300
 
 
 def _normalize_terms(value: object) -> list[str]:
@@ -28,10 +29,10 @@ def _normalize_terms(value: object) -> list[str]:
 
 
 class Preferences(BaseModel):
-    """Soft preferences Open Library can't search for.
+    """Preferences not represented as primary Open Library search criteria.
 
-    These are never sent to the search API. They are kept so the
-    explanation step can judge and describe how well a book fits.
+    Tone and audience remain soft. "Short" length maps to a median-page-count
+    filter, while other length values are kept for the explanation step.
     """
 
     tone: list[str] = Field(
