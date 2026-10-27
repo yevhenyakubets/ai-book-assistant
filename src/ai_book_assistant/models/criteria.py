@@ -1,3 +1,5 @@
+import re
+
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 from ai_book_assistant.text import collapse_whitespace
@@ -69,6 +71,10 @@ class SearchCriteria(BaseModel):
         description="Up to 3 topic words that are not genres or tone",
     )
     author: str | None = Field(default=None, description="Author, only if named")
+    language: str | None = Field(
+        default=None,
+        description="Required edition language as an Open Library three-letter code",
+    )
     year_min: int | None = Field(default=None, description="Earliest publication year")
     year_max: int | None = Field(default=None, description="Latest publication year")
     preferences: Preferences = Field(default_factory=Preferences)
@@ -85,6 +91,14 @@ class SearchCriteria(BaseModel):
         if not isinstance(value, str):
             return None
         return collapse_whitespace(value) or None
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def _clean_language(cls, value: object) -> str | None:
+        if not isinstance(value, str):
+            return None
+        code = collapse_whitespace(value).lower()
+        return code if re.fullmatch(r"[a-z]{3}", code) else None
 
     @field_validator("year_min", "year_max", mode="before")
     @classmethod
@@ -114,7 +128,8 @@ class SearchCriteria(BaseModel):
     def is_searchable(self) -> bool:
         """True when there is something Open Library can actually search for.
 
-        Years, tone, audience and length alone are not enough: a year range by
-        itself would return arbitrary books.
+        Years, language, tone, audience and length alone are not enough: a
+        language or year filter without a content criterion could return
+        arbitrary books.
         """
         return bool(self.subjects or self.keywords or self.author)

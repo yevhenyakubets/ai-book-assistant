@@ -79,6 +79,7 @@ def test_searched_fields_and_preferences_are_kept_apart(make_book):
     criteria = SearchCriteria.model_validate(
         {
             "subjects": ["fantasy"],
+            "language": "eng",
             "year_min": 2000,
             "preferences": {"tone": ["dark"], "audience": "adults"},
         }
@@ -87,9 +88,27 @@ def test_searched_fields_and_preferences_are_kept_apart(make_book):
     payload = _payload(_prompt([make_book()], criteria=criteria, relaxed=True))
 
     assert payload["search"]["subjects"] == ["fantasy"]
+    assert payload["search"]["language"] == "eng"
     assert "preferences" not in payload["search"]
     assert payload["preferences"]["tone"] == ["dark"]
     assert payload["search_loosened"] is True
+
+
+def test_language_filter_semantics_are_explained_without_claiming_an_edition(
+    make_book,
+):
+    criteria = SearchCriteria(subjects=["fantasy"], language="eng")
+
+    prompt = _prompt([make_book(title="Le Dernier Vœu")], criteria=criteria)
+    payload = _payload(prompt)
+
+    assert payload["search"]["language"] == "eng"
+    assert payload["language_filter"] == {
+        "code": "eng",
+        "matches_all_results": True,
+    }
+    assert "Never\n   mention the requested language" in prompt
+    assert "Mention this filter at most once in the summary" in prompt
 
 
 def test_the_query_is_passed_through_unchanged(make_book):

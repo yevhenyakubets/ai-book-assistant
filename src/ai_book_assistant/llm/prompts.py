@@ -9,6 +9,8 @@ Respond with a single JSON object with exactly these keys:
 - "subjects": list of 0-3 short lowercase English genre or topic tags, one concept each
 - "keywords": list of 0-3 specific English words or phrases that are not genres
 - "author": string or null
+- "language": ISO 639-2 code for a requested edition language (e.g. "eng",
+  "fre", "spa"), or null
 - "year_min": integer or null
 - "year_max": integer or null
 - "preferences": object with "tone" (list of mood words), "audience" (string or null)
@@ -29,14 +31,18 @@ Rules:
    preferences only: tone ("dark", "cozy"), audience ("beginners", "children"),
    length ("short", "long"). Treat "short", "brief", "not too long", and a
    request for no more than 300 pages as length "short".
-5. Years: "after 2010" means year_min 2011; "before 2000" means year_max 1999;
+5. If the user asks for books or editions in a language, set "language" to its
+   Open Library three-letter language code, such as English="eng", French="fre",
+   Spanish="spa", German="ger", or Polish="pol". Otherwise use null. Do not use
+   this for a language mentioned only as a character's or setting's language.
+6. Years: "after 2010" means year_min 2011; "before 2000" means year_max 1999;
    "in 1998" means both are 1998; "the 1980s" means 1980 to 1989; "recent" or
    "newer" means year_min {RECENT_YEAR}.
-6. Set author only when a person is named as the author. If the user names a book to
+7. Set author only when a person is named as the author. If the user names a book to
    compare with, you may infer its genre, but never guess its author or plot details.
-7. If the request contains several unrelated wishes, extract only the first one.
-8. The request may be in any language. Always answer in English.
-9. If the request gives nothing searchable, return empty lists and nulls.
+8. If the request contains several unrelated wishes, extract only the first one.
+9. The request may be in any language. Always answer in English.
+10. If the request gives nothing searchable, return empty lists and nulls.
 """
 
 # (user query, fields to extract). Deliberately different from scripts/try_queries.py
@@ -67,6 +73,14 @@ EXAMPLES = [
         {
             "subjects": ["fantasy"],
             "preferences": {"length": "short"},
+        },
+    ),
+    (
+        "Fantasy novels by Andrzej Sapkowski available in English",
+        {
+            "subjects": ["fantasy"],
+            "author": "Andrzej Sapkowski",
+            "language": "eng",
         },
     ),
     (

@@ -98,7 +98,7 @@ def candidate_queries(
                     max_subjects=rung.max_subjects,
                 ),
             )
-    add(RAW_QUERY_RUNG, build_raw_params(raw_query))
+    add(RAW_QUERY_RUNG, build_raw_params(raw_query, criteria.language))
     return candidates
 
 

@@ -75,6 +75,24 @@ def test_author_only_uses_separate_param(make_criteria):
     assert params == {"author": "Terry Pratchett", "fields": SEARCH_FIELDS}
 
 
+def test_language_filter_is_added_to_search_query(make_criteria):
+    params = build_search_params(make_criteria(subjects=["fantasy"], language="eng"))
+
+    assert params["q"] == 'subject:"fantasy" AND language:eng'
+
+
+def test_language_filter_is_kept_with_author_search(make_criteria):
+    params = build_search_params(
+        make_criteria(author="Andrzej Sapkowski", language="eng")
+    )
+
+    assert params == {
+        "author": "Andrzej Sapkowski",
+        "q": "language:eng",
+        "fields": SEARCH_FIELDS,
+    }
+
+
 def test_empty_criteria_returns_none(make_criteria):
     assert build_search_params(make_criteria()) is None
 
