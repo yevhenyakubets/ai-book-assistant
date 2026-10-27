@@ -102,15 +102,46 @@ def test_prompt_ends_waiting_for_the_output(make_book):
     assert _prompt([make_book()]).endswith("Output:")
 
 
-def test_length_is_reported_as_unverifiable_not_as_a_preference(make_book):
+def test_short_length_is_checked_when_page_filter_was_applied(make_book):
     criteria = SearchCriteria.model_validate(
         {"subjects": ["fantasy"], "preferences": {"length": "short"}}
     )
 
-    payload = _payload(_prompt([make_book()], criteria=criteria))
+    payload = _payload(
+        _prompt([make_book()], criteria=criteria, length_filter_applied=True)
+    )
+
+    assert payload["cannot_be_checked"] == []
+    assert payload["length_filter"] == {
+        "requested": "short",
+        "applied": True,
+        "max_median_pages": 300,
+    }
+    assert "length" not in payload["preferences"]
+
+
+def test_short_length_is_unverifiable_after_fallback(make_book):
+    criteria = SearchCriteria.model_validate(
+        {"subjects": ["fantasy"], "preferences": {"length": "short"}}
+    )
+
+    payload = _payload(_prompt([make_book()], criteria=criteria, relaxed=True))
 
     assert payload["cannot_be_checked"] == ["length: short"]
-    assert "length" not in payload["preferences"]
+    assert payload["length_filter"]["applied"] is False
+
+
+def test_long_length_remains_unverifiable(make_book):
+    criteria = SearchCriteria.model_validate(
+        {"subjects": ["fantasy"], "preferences": {"length": "long"}}
+    )
+
+    payload = _payload(
+        _prompt([make_book()], criteria=criteria, length_filter_applied=True)
+    )
+
+    assert payload["cannot_be_checked"] == ["length: long"]
+    assert payload["length_filter"]["applied"] is False
 
 
 def test_nothing_is_unverifiable_when_no_length_was_asked(make_book):

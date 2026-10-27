@@ -52,13 +52,20 @@ class BookExplainer:
         books: list[Book],
         *,
         relaxed: bool = False,
+        length_filter_applied: bool = False,
     ) -> Explanations:
         """Return a summary and per-book texts; empty if nothing usable came back."""
         if not books:
             return Explanations()
 
         result = self.generator.generate(
-            build_explanation_prompt(query, criteria, books, relaxed=relaxed),
+            build_explanation_prompt(
+                query,
+                criteria,
+                books,
+                relaxed=relaxed,
+                length_filter_applied=length_filter_applied,
+            ),
             lambda data: _validate(data, len(books)),
             task="Explanation",
         )
