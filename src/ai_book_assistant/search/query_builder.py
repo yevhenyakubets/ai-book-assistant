@@ -36,6 +36,10 @@ def _length_clause(length: str | None) -> str | None:
     return None
 
 
+def _language_clause(language: str | None) -> str | None:
+    return f"language:{language}" if language else None
+
+
 def build_search_params(
     criteria: SearchCriteria,
     *,
@@ -75,6 +79,10 @@ def build_search_params(
         if length_clause:
             clauses.append(length_clause)
 
+    language_clause = _language_clause(criteria.language)
+    if language_clause:
+        clauses.append(language_clause)
+
     params: dict[str, str] = {}
     if clauses:
         params["q"] = " AND ".join(clauses)
@@ -91,9 +99,12 @@ def build_search_params(
     return params
 
 
-def build_raw_params(query: str) -> dict[str, str] | None:
+def build_raw_params(query: str, language: str | None = None) -> dict[str, str] | None:
     """Last-resort search: the user's own words as a plain query."""
     cleaned = _clean(query)
     if not cleaned:
         return None
+    language_clause = _language_clause(language)
+    if language_clause:
+        cleaned = f"{cleaned} AND {language_clause}"
     return {"q": cleaned, "fields": SEARCH_FIELDS}

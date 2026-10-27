@@ -66,6 +66,24 @@ def test_page_filter_is_dropped_before_other_search_constraints(make_criteria):
     ]
 
 
+def test_language_filter_is_kept_on_every_fallback_rung(make_criteria):
+    criteria = make_criteria(subjects=["fantasy"], keywords=["dragons"], language="eng")
+
+    candidates = candidate_queries(criteria, "fantasy dragons")
+
+    assert len(candidates) > 1
+    assert all("language:eng" in params["q"] for _, params in candidates)
+
+
+def test_language_filter_is_kept_on_raw_query_fallback(make_criteria):
+    criteria = make_criteria(subjects=["fantasy"], language="eng")
+
+    candidates = candidate_queries(criteria, "witcher")
+
+    assert candidates[-1][0] == "raw_query"
+    assert candidates[-1][1]["q"] == "witcher AND language:eng"
+
+
 def test_short_filter_falls_back_when_page_metadata_is_missing(make_criteria):
     criteria = make_criteria(subjects=["fantasy"], preferences={"length": "short"})
     client = FakeClient([0, 2])
