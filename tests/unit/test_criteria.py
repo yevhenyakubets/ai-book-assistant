@@ -39,3 +39,19 @@ def test_implausible_year_is_dropped():
 def test_old_year_key_is_ignored():
     c = SearchCriteria.model_validate({"year": 2010})
     assert c.year_min is None and c.year_max is None
+
+
+def test_language_code_is_normalized():
+    c = SearchCriteria.model_validate({"subjects": ["fantasy"], "language": " ENG "})
+
+    assert c.language == "eng"
+
+
+def test_invalid_language_code_is_ignored():
+    c = SearchCriteria.model_validate({"subjects": ["fantasy"], "language": "English"})
+
+    assert c.language is None
+
+
+def test_language_alone_is_not_searchable():
+    assert not SearchCriteria(language="eng").is_searchable

@@ -32,9 +32,14 @@ jobs:
       - name: Run linter via pre-commit
         uses: pre-commit/action@v3.0.0
 
-      - name: Run tests
+      - name: Run unit tests
         run: |
           uv run pytest
+
+      - name: Run integration tests
+        run: |
+          uv run pytest tests/integration
+
   publish:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

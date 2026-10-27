@@ -37,6 +37,7 @@ class Explainer(Protocol):
         books: list[Book],
         *,
         relaxed: bool = False,
+        length_filter_applied: bool = False,
     ) -> Explanations: ...
 
 
@@ -101,7 +102,11 @@ class BookAssistant:
             return Explanations()
         try:
             return self.explainer.explain(
-                query, criteria, outcome.books, relaxed=outcome.relaxed
+                query,
+                criteria,
+                outcome.books,
+                relaxed=outcome.relaxed,
+                length_filter_applied=outcome.length_filter_applied,
             )
         except LLMError as exc:
             # The books are already found; losing the explanations must not lose them.

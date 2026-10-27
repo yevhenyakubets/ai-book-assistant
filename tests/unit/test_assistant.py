@@ -51,8 +51,10 @@ class FakeExplainer:
         self.error = error
         self.calls: list[tuple] = []
 
-    def explain(self, query, criteria, books, *, relaxed=False):
-        self.calls.append((query, criteria, books, relaxed))
+    def explain(
+        self, query, criteria, books, *, relaxed=False, length_filter_applied=False
+    ):
+        self.calls.append((query, criteria, books, relaxed, length_filter_applied))
         if self.error:
             raise self.error
         return self.result
@@ -156,7 +158,7 @@ def test_explainer_sees_the_books_with_their_descriptions(make_book) -> None:
 
     _assistant(FakeCatalog([make_book()]), explainer).search("fantasy")
 
-    query, _, books, relaxed = explainer.calls[0]
+    query, _, books, relaxed, _ = explainer.calls[0]
     assert query == "fantasy"
     assert books[0].description == "About A book"
     assert relaxed is False
@@ -169,6 +171,17 @@ def test_relaxed_flag_is_forwarded_to_the_explainer(make_book) -> None:
     _assistant(RelaxedCatalog([make_book()]), explainer, criteria).search("x")
 
     assert explainer.calls[0][3] is True
+
+
+def test_applied_short_filter_is_forwarded_to_the_explainer(make_book) -> None:
+    explainer = FakeExplainer()
+    criteria = SearchCriteria.model_validate(
+        {"subjects": ["fantasy"], "preferences": {"length": "short"}}
+    )
+
+    _assistant(FakeCatalog([make_book()]), explainer, criteria).search("short fantasy")
+
+    assert explainer.calls[0][4] is True
 
 
 def test_without_an_explainer_there_are_no_explanations(make_book) -> None:

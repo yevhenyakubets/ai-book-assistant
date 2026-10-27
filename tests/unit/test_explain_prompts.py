@@ -45,6 +45,28 @@ def test_missing_description_is_null(make_book):
     assert _payload(_prompt([make_book()]))["books"][0]["description"] is None
 
 
+def test_richer_open_library_metadata_is_in_the_explanation_prompt(make_book):
+    book = make_book(
+        number_of_pages_median=240,
+        ratings_average=4.25,
+        ratings_count=120,
+        want_to_read_count=350,
+        languages=["eng", "fre"],
+        covers=[123],
+        first_sentence="It began at dawn.",
+    )
+
+    data = _payload(_prompt([book]))["books"][0]
+
+    assert data["number_of_pages_median"] == 240
+    assert data["ratings_average"] == 4.25
+    assert data["ratings_count"] == 120
+    assert data["want_to_read_count"] == 350
+    assert data["languages"] == ["eng", "fre"]
+    assert data["cover_url"] == "https://covers.openlibrary.org/b/id/123-M.jpg"
+    assert data["first_sentence"] == "It began at dawn."
+
+
 def test_subjects_are_capped(make_book):
     book = make_book(subjects=[f"s{i}" for i in range(20)])
 
@@ -57,6 +79,7 @@ def test_searched_fields_and_preferences_are_kept_apart(make_book):
     criteria = SearchCriteria.model_validate(
         {
             "subjects": ["fantasy"],
+            "language": "eng",
             "year_min": 2000,
             "preferences": {"tone": ["dark"], "audience": "adults"},
         }
@@ -65,9 +88,27 @@ def test_searched_fields_and_preferences_are_kept_apart(make_book):
     payload = _payload(_prompt([make_book()], criteria=criteria, relaxed=True))
 
     assert payload["search"]["subjects"] == ["fantasy"]
+    assert payload["search"]["language"] == "eng"
     assert "preferences" not in payload["search"]
     assert payload["preferences"]["tone"] == ["dark"]
     assert payload["search_loosened"] is True
+
+
+def test_language_filter_semantics_are_explained_without_claiming_an_edition(
+    make_book,
+):
+    criteria = SearchCriteria(subjects=["fantasy"], language="eng")
+
+    prompt = _prompt([make_book(title="Le Dernier Vœu")], criteria=criteria)
+    payload = _payload(prompt)
+
+    assert payload["search"]["language"] == "eng"
+    assert payload["language_filter"] == {
+        "code": "eng",
+        "matches_all_results": True,
+    }
+    assert "Never\n   mention the requested language" in prompt
+    assert "Mention this filter at most once in the summary" in prompt
 
 
 def test_the_query_is_passed_through_unchanged(make_book):
@@ -80,15 +121,46 @@ def test_prompt_ends_waiting_for_the_output(make_book):
     assert _prompt([make_book()]).endswith("Output:")
 
 
-def test_length_is_reported_as_unverifiable_not_as_a_preference(make_book):
+def test_short_length_is_checked_when_page_filter_was_applied(make_book):
     criteria = SearchCriteria.model_validate(
         {"subjects": ["fantasy"], "preferences": {"length": "short"}}
     )
 
-    payload = _payload(_prompt([make_book()], criteria=criteria))
+    payload = _payload(
+        _prompt([make_book()], criteria=criteria, length_filter_applied=True)
+    )
+
+    assert payload["cannot_be_checked"] == []
+    assert payload["length_filter"] == {
+        "requested": "short",
+        "applied": True,
+        "max_median_pages": 300,
+    }
+    assert "length" not in payload["preferences"]
+
+
+def test_short_length_is_unverifiable_after_fallback(make_book):
+    criteria = SearchCriteria.model_validate(
+        {"subjects": ["fantasy"], "preferences": {"length": "short"}}
+    )
+
+    payload = _payload(_prompt([make_book()], criteria=criteria, relaxed=True))
 
     assert payload["cannot_be_checked"] == ["length: short"]
-    assert "length" not in payload["preferences"]
+    assert payload["length_filter"]["applied"] is False
+
+
+def test_long_length_remains_unverifiable(make_book):
+    criteria = SearchCriteria.model_validate(
+        {"subjects": ["fantasy"], "preferences": {"length": "long"}}
+    )
+
+    payload = _payload(
+        _prompt([make_book()], criteria=criteria, length_filter_applied=True)
+    )
+
+    assert payload["cannot_be_checked"] == ["length: long"]
+    assert payload["length_filter"]["applied"] is False
 
 
 def test_nothing_is_unverifiable_when_no_length_was_asked(make_book):

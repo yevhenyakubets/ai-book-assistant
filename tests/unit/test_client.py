@@ -20,6 +20,54 @@ def test_fetch_work_description(client: OpenLibraryClient) -> None:
     assert desc == "An epic sci-fi masterwork."
 
 
+def test_open_library_user_agent_includes_contact_email(monkeypatch) -> None:
+    monkeypatch.setenv("OPEN_LIBRARY_CONTACT_EMAIL", "reader@example.com")
+
+    client = OpenLibraryClient()
+
+    assert "reader@example.com" in client.headers["User-Agent"]
+
+
+def test_open_library_user_agent_omits_missing_contact_email(monkeypatch) -> None:
+    monkeypatch.delenv("OPEN_LIBRARY_CONTACT_EMAIL", raising=False)
+
+    client = OpenLibraryClient()
+
+    assert client.headers["User-Agent"] == (
+        "AIBookAssistant/0.1 " "(https://github.com/yevhenyakubets/ai-book-assistant)"
+    )
+
+
+def test_fetch_work_description_caches_successful_response() -> None:
+    requests = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        return httpx.Response(200, json={"description": "A story."})
+
+    client = OpenLibraryClient(transport=httpx.MockTransport(handler))
+
+    assert client.fetch_work_description("/works/OL1W") == "A story."
+    assert client.fetch_work_description("/works/OL1W") == "A story."
+    assert requests == 1
+
+
+def test_fetch_work_description_caches_missing_work() -> None:
+    requests = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal requests
+        requests += 1
+        return httpx.Response(404)
+
+    client = OpenLibraryClient(transport=httpx.MockTransport(handler))
+
+    assert client.fetch_work_description("/works/OL1W") is None
+    assert client.fetch_work_description("/works/OL1W") is None
+    assert requests == 1
+
+
 def test_fetch_work_description_not_found() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(404)

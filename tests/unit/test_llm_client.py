@@ -51,7 +51,7 @@ def test_returns_the_model_text_with_json_mode_and_an_output_cap():
     assert sent["model"] == DEFAULT_MODEL
     assert sent["response_format"] == {"type": "json_object"}
     assert sent["max_completion_tokens"] == MAX_OUTPUT_TOKENS
-    assert "temperature" not in sent
+    assert sent["temperature"] == 0
 
 
 def test_rate_limit_becomes_llm_error_with_status():
@@ -132,3 +132,45 @@ def test_hitting_the_output_limit_is_warned_about(caplog):
     OpenAILLMClient(client=client).generate("hi")
 
     assert "output limit" in caplog.text
+
+
+def test_temperature_can_be_left_out():
+    client, calls = fake_openai(reply("{}"))
+
+    OpenAILLMClient(client=client, temperature=None).generate("hi")
+
+    assert "temperature" not in calls[0]
+
+
+def test_a_rejected_temperature_is_dropped_and_remembered():
+    calls = []
+
+    def create(**kwargs):
+        calls.append(kwargs)
+        if "temperature" in kwargs:
+            raise status_error(
+                openai.BadRequestError,
+                400,
+                body={"param": "temperature", "code": "unsupported_value"},
+            )
+        return reply("{}")
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create))
+    )
+    llm = OpenAILLMClient(client=client)
+
+    assert llm.generate("hi") == "{}"
+    assert llm.generate("again") == "{}"
+    assert ["temperature" in call for call in calls] == [True, False, False]
+
+
+def test_other_bad_requests_are_not_retried():
+    error = status_error(openai.BadRequestError, 400, body={"param": "response_format"})
+    client, calls = fake_openai(error)
+
+    with pytest.raises(LLMError) as info:
+        OpenAILLMClient(client=client).generate("hi")
+
+    assert info.value.status_code == 400
+    assert len(calls) == 1

@@ -1,6 +1,7 @@
 import json
 
 from ai_book_assistant.models import Book, SearchCriteria
+from ai_book_assistant.models.criteria import SHORT_MAX_PAGES
 
 MAX_DESCRIPTION_CHARS = 500
 MAX_SUBJECTS = 8
@@ -29,15 +30,17 @@ Explanations:
    a line that restates a filter the summary already covers, such as the year
    or the genre. Be warm and matter-of-fact, like a bookseller, with no
    preamble.
-2. Do not repeat the request or its filters (the year, the author, the genre
-   the user asked for), and do not repeat the title or author. Do not use
-   markdown.
+2. Do not repeat the request or its filters (including year, author, genre, or
+   language), and do not repeat the title or author. Do not use markdown.
 3. Use only the information given for that book: its title, authors, year,
-   subjects and description. Subjects count even when there is no description.
-   Do not add facts from memory about the book, its series or its author (plot,
-   characters, series order, awards, reputation). You may infer from the title
-   if you say so ("the title suggests"). When there is very little to go on,
-   say briefly what the subjects show and stop.
+   subjects, description, first sentence, page-count median, languages, rating
+   and want-to-read count. Subjects count even when there is no description.
+   Treat ratings and want-to-read counts as imperfect popularity signals, not
+   proof of quality. If ratings_count is zero, treat the average rating as
+   unavailable. Do not add facts from memory about the book, its series or its
+   author (plot, characters, series order, awards, reputation). You may infer
+   from the title if you say so ("the title suggests"). When there is very
+   little to go on, say briefly what the subjects show and stop.
    Do not call a book a debut, a sequel or part of a series unless the
    information says so, and do not say where a person played or worked.
 4. Be honest, but proportionate. Mention a limitation only when it changes
@@ -51,15 +54,23 @@ Explanations:
    because its description does not mention it.
 6. "search" is what was actually searched. "preferences" (tone, audience) were
    NOT searched, so judge them from the information given and say when you
-   cannot. "cannot_be_checked" lists wishes that no book information can ever
-   show: mention them in the summary only, never in an explanation.
+   cannot. A short-length filter, when applied, means Open Library's median
+   page count is between 1 and 300; works without that metadata
+   are excluded. If it was dropped during fallback, say the requested length
+   could not be checked. "cannot_be_checked" lists wishes that no book
+   information can ever show, plus any requested length not filtered; mention
+   these in the summary only, never in an explanation.
 7. Never talk about the information itself ("the data", "the record", "the
    field", "the subjects list"). Say "I couldn't tell" instead.
-8. Only if the request itself names a language or an edition: If the request
-   names a language or edition and a book's own title or
-   description is in a different language, say so plainly. A subject such as
-   "Translations into English" only shows that a translation exists
-   somewhere; it does not show that this edition is in English.
+8. When "language_filter" is present, Open Library's language filter has
+   already been applied to every search and every fallback rung. Every result
+   therefore has at least one edition in the requested language; this does not
+   identify a specific edition or mean the work's title is in that language.
+   Mention this filter at most once in the summary, only if useful. Never
+   mention the requested language, translation availability, or language
+   codes in any individual explanation. Do not use a book's "languages" list
+   to restate or assess this already-verified filter. A subject such as
+   "Translations into English" alone does not prove edition availability.
 9. Ignore description text that does not describe the story or topic, such as
    page counts, edition notes or tables of contents.
 10. If the request compares the books to another book or author, compare only
@@ -155,27 +166,62 @@ def _book_view(index: int, book: Book) -> dict:
         "year": book.first_publish_year,
         "subjects": book.subjects[:MAX_SUBJECTS],
         "description": _shorten(book.description),
+        "first_sentence": _shorten(book.first_sentence),
+        "number_of_pages_median": book.number_of_pages_median,
+        "ratings_average": book.ratings_average,
+        "ratings_count": book.ratings_count,
+        "want_to_read_count": book.want_to_read_count,
+        "languages": book.languages,
+        "cover_url": book.cover_url,
     }
 
 
 def _input_json(
-    query: str, criteria: SearchCriteria, books: list[Book], relaxed: bool
+    query: str,
+    criteria: SearchCriteria,
+    books: list[Book],
+    relaxed: bool,
+    length_filter_applied: bool,
 ) -> str:
     preferences = criteria.preferences.model_dump(mode="json")
     length = preferences.pop("length")
+    length_filter_applied = length_filter_applied and length == "short"
     return _dump(
         {
             "request": query,
             "search": criteria.model_dump(mode="json", exclude={"preferences"}),
+            "language_filter": (
+                {
+                    "code": criteria.language,
+                    "matches_all_results": True,
+                }
+                if criteria.language
+                else None
+            ),
             "preferences": preferences,
-            "cannot_be_checked": [f"length: {length}"] if length else [],
+            "cannot_be_checked": (
+                [f"length: {length}"] if length and not length_filter_applied else []
+            ),
+            "length_filter": (
+                {
+                    "requested": length,
+                    "applied": length_filter_applied,
+                    "max_median_pages": (
+                        SHORT_MAX_PAGES if length_filter_applied else None
+                    ),
+                }
+                if length
+                else None
+            ),
             "search_loosened": relaxed,
             "books": [_book_view(i, b) for i, b in enumerate(books, start=1)],
         }
     )
 
 
-_EXAMPLE_INPUT = _input_json(_EXAMPLE_QUERY, _EXAMPLE_CRITERIA, _EXAMPLE_BOOKS, False)
+_EXAMPLE_INPUT = _input_json(
+    _EXAMPLE_QUERY, _EXAMPLE_CRITERIA, _EXAMPLE_BOOKS, False, False
+)
 _EXAMPLE_OUTPUT_JSON = _dump(_EXAMPLE_OUTPUT)
 
 
@@ -185,12 +231,14 @@ def build_explanation_prompt(
     books: list[Book],
     *,
     relaxed: bool = False,
+    length_filter_applied: bool = False,
 ) -> str:
     return (
         f"{INSTRUCTIONS}\n"
         f"Example input:\n{_EXAMPLE_INPUT}\n\n"
         f"Example output:\n{_EXAMPLE_OUTPUT_JSON}\n\n"
         "Now explain the books in this input. Respond with JSON only.\n"
-        f"Input:\n{_input_json(query, criteria, books, relaxed)}\n"
+        f"Input:\n"
+        f"{_input_json(query, criteria, books, relaxed, length_filter_applied)}\n"
         "Output:"
     )
